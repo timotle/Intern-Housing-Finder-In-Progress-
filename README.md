@@ -1,73 +1,13 @@
-# React + TypeScript + Vite
+DEADLINE: 04/08/2026
+Intern Housing Finder												                                                  Date 2026
+Personal Project | (~40 hours) | TypeScript, React, Node.js, Express, HTML, CSS, OpenAI API
+Built a full-stack housing search platform using React and Node.js that enables users to filter and compare apartment listings based on price, location, commute distance, and leasing term.
+Engineered an AI-powered recommendation system that analyzes user preferences to suggest optimal housing options and explain tradeoffs between listings
+Integrated OpenAI API to generate structured insights from listings, including pros/cons summaries and personalized explanations of best-fit housing options
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+PLANNING PHASE
+Problem: Interns have a hard time finding the best housing options when forced to relocate. I want to offer them a way to find these apartments and housing options a lot easier so they don’t need to spend too much time finding it themselves.
+	
+Features: navigation bar, filter by [price, distance/commute, leasing term, number of people], AI agent[pros/cons. tradeoffs, 
+  best option
 
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
