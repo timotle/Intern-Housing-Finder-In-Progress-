@@ -1,13 +1,23 @@
-DEADLINE: 04/08/2026
-Intern Housing Finder												                                                  Date 2026
-Personal Project | (~40 hours) | TypeScript, React, Node.js, Express, HTML, CSS, OpenAI API
--Built a full-stack housing search platform using React and Node.js that enables users to filter and compare apartment listings based on price, location, commute distance, and leasing term.
--Engineered an AI-powered recommendation system that analyzes user preferences to suggest optimal housing options and explain tradeoffs between listings
--Integrated OpenAI API to generate structured insights from listings, including pros/cons summaries and personalized explanations of best-fit housing options
+# Intern Housing Finder - DEADLINE IS 4/08
 
-PLANNING PHASE
-Problem: Interns have a hard time finding the best housing options when forced to relocate. I want to offer them a way to find these apartments and housing options a lot easier so they don’t need to spend too much time finding it themselves.
-	
-Features: navigation bar, filter by [price, distance/commute, leasing term, number of people], AI agent[pros/cons. tradeoffs, 
-  best option]
+**Overview**  
+This is a full-stack web application I built to help students and interns find and compare housing options when relocating for internships. Instead of searching across multiple websites, users can filter listings and get AI-generated recommendations based on their preferences.
 
+**Features**  
+- Filter housing by price, commute distance, lease term, and number of occupants  
+- Compare multiple listings side by side  
+- Generate AI-powered recommendations for best-fit housing  
+- Provide pros and cons for each listing  
+- Explain tradeoffs between different housing options  
+- Simple navigation and clean user interface  
+
+**Languages/Tools/Frameworks**  
+- TypeScript  
+- React  
+- Node.js  
+- Express  
+- HTML/CSS  
+- OpenAI API  
+
+**How It Works**  
+Users input their housing preferences such as budget, commute distance, and lease duration. The application filters available listings based on these constraints. An AI component analyzes the filtered results and generates structured insights, including pros and cons and personalized recommendations, helping users understand which option best fits their needs.
