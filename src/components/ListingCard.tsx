@@ -1,0 +1,20 @@
+import type { Listing } from "../types";
+
+type ListingCardProps = {
+    listing: Listing;
+};
+
+function ListingCard({ listing }: ListingCardProps) {
+    return(
+        <div>
+            <h2>{listing.name}</h2>
+            <p>Price: ${listing.price}</p>
+            <p>Location: {listing.location}</p>
+            <p>Commute Time: {listing.commuteTime} minutes</p>
+            <p>Lease Term: {listing.leaseTerm}</p>
+            <p>Number of People: {listing.numPeople}</p>
+            <p>{listing.description}</p>
+        </div>
+    );
+}
+export default ListingCard;
