@@ -8,6 +8,9 @@ function ListingCard({ listing }: ListingCardProps) {
     return(
         <div>
             <h2>{listing.name}</h2>
+            {listing.matchScore !== undefined && (
+                <p>Match Score: {listing.matchScore}</p>
+            )}
             <p>Price: ${listing.price}</p>
             <p>Location: {listing.location}</p>
             <p>Commute Time: {listing.commuteTime} minutes</p>

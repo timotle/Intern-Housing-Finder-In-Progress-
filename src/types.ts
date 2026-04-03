@@ -8,5 +8,6 @@ export type Listing = {
     numBedroom: number;
     furnished: boolean;
     parking: boolean;
-    laundry: boolean
+    laundry: boolean;
+    matchScore?: number;
 };

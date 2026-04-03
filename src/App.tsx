@@ -42,6 +42,36 @@ function App() {
       matchesParking
     );
   });
+  //match score implemented here
+  const scoredListings = filteredListings.map((listing) => {
+    let score = 0;
+    if (maxPrice !== "" && listing.price <= Number(maxPrice)) {
+      score += 25;
+    }
+    if (maxCommuteTime !== "" && listing.commuteTime <= Number(maxCommuteTime)) {
+      score += 20;
+    }
+    if (leaseTerm !== "" && listing.leaseTerm === Number(leaseTerm)) {
+      score += 20;
+    }
+    if (minBedrooms !== "" && listing.numBedroom >= Number(minBedrooms)) {
+      score += 15;
+    }
+    if (furnishedOnly && listing.furnished) {
+      score += 10;
+    }
+    if (laundryOnly && listing.laundry) {
+      score += 5;
+    }
+    if (parkingOnly && listing.parking) {
+      score += 5;
+    }
+    return { ...listing, matchScore: score };
+  });
+  // sorting implemented here
+  const sortedListings = scoredListings.sort(
+    (a, b) => b.matchScore - a.matchScore
+  );
 
   return (
     <div>
@@ -97,7 +127,7 @@ function App() {
         </label>
       </div>
       <p>{filteredListings.length} listing(s) found</p>
-      {filteredListings.map((listing) => (
+      {sortedListings.map((listing) => (
         <ListingCard key={listing.id} listing={listing} />
       ))}
     </div>
