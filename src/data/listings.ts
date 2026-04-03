@@ -1,5 +1,5 @@
 import type { Listing } from "../types";
-
+// our fake data -> can transition to data scraping later
 export const listings: Listing[] = [
   {
     id: 1,
@@ -7,10 +7,10 @@ export const listings: Listing[] = [
     price: 1300,
     location: "Seattle, WA",
     commuteTime: 15,
-    leaseTerm: "3 months",
+    leaseTerm: 3,
     numBedroom: 4,
     furnished: true,
-    laundry: true,
+    laundry: false,
     parking: true,
   },
 
@@ -20,10 +20,10 @@ export const listings: Listing[] = [
     price: 1500,
     location: "Seattle, WA",
     commuteTime: 25,
-    leaseTerm: "6 months",
+    leaseTerm: 6,
     numBedroom: 5,
     furnished: true,
     laundry: true,
-    parking: true,
+    parking: false,
   }
 ];

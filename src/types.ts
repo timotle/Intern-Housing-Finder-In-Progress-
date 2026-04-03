@@ -4,7 +4,7 @@ export type Listing = {
     price: number;
     location: string;
     commuteTime: number;
-    leaseTerm: string;
+    leaseTerm: number;
     numBedroom: number;
     furnished: boolean;
     parking: boolean;
