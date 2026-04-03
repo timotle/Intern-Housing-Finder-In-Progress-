@@ -8,9 +8,12 @@ export const listings: Listing[] = [
     location: "Seattle, WA",
     commuteTime: 15,
     leaseTerm: "3 months",
-    numPeople: 5,
-    description: "a premier, modern student housing community offering fully furnished, high-end apartments"
+    numBedroom: 4,
+    furnished: true,
+    laundry: true,
+    parking: true,
   },
+
   {
     id: 2,
     name: "The Standard",
@@ -18,7 +21,9 @@ export const listings: Listing[] = [
     location: "Seattle, WA",
     commuteTime: 25,
     leaseTerm: "6 months",
-    numPeople: 6,
-    description: "Affordable shared housing with amenities."
+    numBedroom: 5,
+    furnished: true,
+    laundry: true,
+    parking: true,
   }
 ];

@@ -12,8 +12,10 @@ function ListingCard({ listing }: ListingCardProps) {
             <p>Location: {listing.location}</p>
             <p>Commute Time: {listing.commuteTime} minutes</p>
             <p>Lease Term: {listing.leaseTerm}</p>
-            <p>Number of People: {listing.numPeople}</p>
-            <p>{listing.description}</p>
+            <p>Number of Bedrooms: {listing.numBedroom}</p>
+            <p>{listing.furnished && "Furnished"}</p>
+            <p>{listing.laundry && "Laundry"}</p>
+            <p>{listing.parking && "Parking"}</p>
         </div>
     );
 }

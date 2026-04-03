@@ -5,6 +5,8 @@ export type Listing = {
     location: string;
     commuteTime: number;
     leaseTerm: string;
-    numPeople: number;
-    description: string;
+    numBedroom: number;
+    furnished: boolean;
+    parking: boolean;
+    laundry: boolean
 };
