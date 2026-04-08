@@ -1,6 +1,35 @@
 import { listings } from "./data/listings";
 import ListingCard from "./components/ListingCard";
 import { useState } from "react";
+async function getMatchExplanation(
+  userPreferences: any,
+  listing: any,
+  matchScore: number
+) {
+  try {
+    const response = await fetch("http://localhost:5000/api/explain-match", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        userPreferences,
+        listing,
+        matchScore,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Sorry explanation could not be fetched");
+    }
+
+    const data = await response.json();
+    return data.explanation;
+  } catch (error) {
+    console.error("The explanation erorr:", error);
+    return "Sorry the explanation can't be generated right now.";
+  }
+}
 function App() {
   const [maxPrice, setMaxPrice] = useState("");
   const [maxCommuteTime, setMaxCommuteTime] = useState("");
@@ -46,19 +75,19 @@ function App() {
   const scoredListings = filteredListings.map((listing) => {
     let score = 0;
     if (maxPrice !== "" && listing.price <= Number(maxPrice)) {
-      score += 25;
+      score += 30;
     }
     if (maxCommuteTime !== "" && listing.commuteTime <= Number(maxCommuteTime)) {
-      score += 20;
+      score += 10;
     }
     if (leaseTerm !== "" && listing.leaseTerm === Number(leaseTerm)) {
-      score += 20;
+      score += 30;
     }
     if (minBedrooms !== "" && listing.numBedroom >= Number(minBedrooms)) {
-      score += 15;
+      score += 10;
     }
     if (furnishedOnly && listing.furnished) {
-      score += 10;
+      score += 15;
     }
     if (laundryOnly && listing.laundry) {
       score += 5;
@@ -76,6 +105,26 @@ function App() {
   return (
     <div>
       <h1>Intern Housing Finder</h1>
+      <button
+        onClick={async () => {
+        const explanation = await getMatchExplanation(
+        { maxPrice: 1200,
+          maxCommute: 20,
+          furnished: true,
+          preferredLeaseTerm: 12,
+        },
+        { title: "U District Studio",
+          price: 1100,
+          commute: 15,
+          furnished: true,
+          leaseTerm: 12,
+          location: "Seattle",
+        },85);
+        console.log(explanation);
+        alert(explanation);
+      }}>
+      Test AI Explanation
+      </button>
       <input
         type="number"
         placeholder="Max Price"
