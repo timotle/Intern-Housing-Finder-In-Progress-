@@ -23,20 +23,23 @@ app.post("/api/explain-match", async (req, res) => {
     const prompt = `
     You are a smart housing recommendation assistant.
 
-    Analyze the following apartment listings based on the user's preferences.
+    Analyze this apartment listing based on the user's preferences.
 
-    For EACH listing:
-    - Give 2-3 clear pros
-    - Give 2-3 clear cons
-    - Be specific (price vs budget, commute vs preference, lease term, amenities)
+    Give:
+    - 2-3 clear pros
+    - 2-3 clear cons
+    - a short explanation of why this listing is or is not a strong match
 
-    Then:
-    - Compare the listings
-    - Identify which listing is the BEST overall fit
-    - Explain WHY it is the best choice
-    - Mention tradeoffs between options
+    Be specific about:
+    - price compared to budget
+    - commute time compared to preference
+    - lease term
+    - number of bedrooms
+    - amenities like furnished, parking, and laundry
 
-    Keep the tone analytical, concise, and helpful. Avoid generic statements.
+    Keep the tone concise, helpful, and specific.
+    Do not compare this listing to other listings.
+
 
 User Preferences:
 ${JSON.stringify(userPreferences)}

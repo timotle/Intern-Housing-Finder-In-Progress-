@@ -1,10 +1,4 @@
-import type { Listing } from "../types";
-
-type ListingCardProps = {
-    listing: Listing;
-};
-
-function ListingCard({ listing }: ListingCardProps) {
+function ListingCard({ listing, onExplainMatch }: any) {
     return(
         <div>
             <h2>{listing.name}</h2>
@@ -19,7 +13,10 @@ function ListingCard({ listing }: ListingCardProps) {
             <p>{listing.furnished && "Furnished"}</p>
             <p>{listing.laundry && "Laundry"}</p>
             <p>{listing.parking && "Parking"}</p>
+            <button onClick={() => onExplainMatch(listing)}>
+            Explain This Match Score
+            </button>
         </div>
     );
-}
+} 
 export default ListingCard;

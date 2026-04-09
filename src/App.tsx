@@ -101,30 +101,25 @@ function App() {
   const sortedListings = scoredListings.sort(
     (a, b) => b.matchScore - a.matchScore
   );
-
+  const explainMatch = async (listing: any) => {
+    const explanation = await getMatchExplanation(
+      {
+        maxPrice,
+        maxCommuteTime,
+        leaseTerm,
+        minBedrooms,
+        furnishedOnly,
+        laundryOnly,
+        parkingOnly
+      },
+      listing,
+      listing.matchScore ?? 0
+    );
+    alert(explanation);
+  }
   return (
     <div>
       <h1>Intern Housing Finder</h1>
-      <button
-        onClick={async () => {
-        const explanation = await getMatchExplanation(
-        { maxPrice: 1200,
-          maxCommute: 20,
-          furnished: true,
-          preferredLeaseTerm: 12,
-        },
-        { title: "U District Studio",
-          price: 1100,
-          commute: 15,
-          furnished: true,
-          leaseTerm: 12,
-          location: "Seattle",
-        },85);
-        console.log(explanation);
-        alert(explanation);
-      }}>
-      Test AI Explanation
-      </button>
       <input
         type="number"
         placeholder="Max Price"
@@ -177,7 +172,10 @@ function App() {
       </div>
       <p>{filteredListings.length} listing(s) found</p>
       {sortedListings.map((listing) => (
-        <ListingCard key={listing.id} listing={listing} />
+        <ListingCard 
+          key={listing.id} 
+          listing={listing} 
+          onExplainMatch={explainMatch}/>
       ))}
     </div>
   );
