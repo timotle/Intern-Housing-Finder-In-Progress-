@@ -18,37 +18,53 @@ app.post("/api/explain-match", async (req, res) => {
     console.log("Request body:", req.body);
     console.log("API key loaded:", !!process.env.OPENAI_API_KEY);
 
-    const { userPreferences, listing, matchScore } = req.body;
+    const { userPreferences, selectedListing, visibleListings } = req.body;
 
     const prompt = `
-    You are a smart housing recommendation assistant.
+    You are a student-friendly readable smart housing recommendation assistant.
 
-    Analyze this apartment listing based on the user's preferences.
+    The user clicked on one listing, but your job is to evaluate ALL visible listings objectively before discussing the selected listing.
 
-    Give:
-    - 2-3 clear pros
-    - 2-3 clear cons
-    - a short explanation of why this listing is or is not a strong match
+    IMPORTANT RULES:
+    - Do NOT assume the selected listing is the best option.
+    - First, rank ALL visible listings from best to worst.
+    - Use the provided matchScore as the PRIMARY ranking signal.
+    - If two listings have the same matchScore, break ties by:
+      1) lower price
+      2) shorter commute time
+    - Only after ranking should you analyze the selected listing.
 
-    Be specific about:
-    - price compared to budget
-    - commute time compared to preference
-    - lease term
-    - number of bedrooms
-    - amenities like furnished, parking, and laundry
+    Your response must follow this exact structure:
 
-    Keep the tone concise, helpful, and specific.
-    Do not compare this listing to other listings.
+    Overall Ranking:
+    1. [Listing Name]
+    2. [Listing Name]
+    ...
 
+    Selected Listing Rank:
+    [State its rank clearly, e.g., "2nd out of 3"]
+
+    Why It Ranks There:
+    [Explain using price, commute time, lease term, bedrooms, and amenities]
+
+    Tradeoffs Compared to Other Listings:
+    - [Specific comparison, ex. "Cheaper than X but longer commute"]
+    - [Specific comparison, ex. "Has parking but lacks laundry compared to Y"]
+
+    STRICT REQUIREMENTS:
+    - You MUST include at least 2 tradeoffs.
+    - Do NOT use placeholders like "..." or vague statements.
+    - Be specific and comparative.
+    - Keep the tone concise and analytical[REMEMBER AUDIENCE IS INTERNS/STUDENTS]
 
 User Preferences:
 ${JSON.stringify(userPreferences)}
 
-Listings:
-${JSON.stringify(listing)}
+Selected Listing:
+${JSON.stringify(selectedListing)}
 
-Match Scores:
-${JSON.stringify(matchScore)}
+All Visible Listings:
+${JSON.stringify(visibleListings)}
 `;
     const response = await client.chat.completions.create({
       model: "gpt-4.1-mini",

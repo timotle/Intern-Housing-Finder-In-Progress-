@@ -3,8 +3,8 @@ import ListingCard from "./components/ListingCard";
 import { useState } from "react";
 async function getMatchExplanation(
   userPreferences: any,
-  listing: any,
-  matchScore: number
+  selectedListing: any,
+  visibleListings: any[]
 ) {
   try {
     const response = await fetch("http://localhost:5000/api/explain-match", {
@@ -14,8 +14,8 @@ async function getMatchExplanation(
       },
       body: JSON.stringify({
         userPreferences,
-        listing,
-        matchScore,
+        selectedListing,
+        visibleListings,
       }),
     });
 
@@ -101,6 +101,7 @@ function App() {
   const sortedListings = scoredListings.sort(
     (a, b) => b.matchScore - a.matchScore
   );
+  // ai feature
   const explainMatch = async (listing: any) => {
     const explanation = await getMatchExplanation(
       {
@@ -113,7 +114,7 @@ function App() {
         parkingOnly
       },
       listing,
-      listing.matchScore ?? 0
+      sortedListings
     );
     alert(explanation);
   }
