@@ -1,7 +1,7 @@
-function ListingCard({ listing, onExplainMatch }: any) {
+function ListingCard({ listing, rank, onExplainMatch, explanation, isLoading }: any) {
     return(
         <div>
-            <h2>{listing.name}</h2>
+            <h2>#{rank} - {listing.name}</h2>
             {listing.matchScore !== undefined && (
                 <p>Match Score: {listing.matchScore}</p>
             )}
@@ -14,8 +14,14 @@ function ListingCard({ listing, onExplainMatch }: any) {
             <p>{listing.laundry && "Laundry"}</p>
             <p>{listing.parking && "Parking"}</p>
             <button onClick={() => onExplainMatch(listing)}>
-            Explain This Match Score
+                {explanation ? "Close Explanation" : "Review Listing"}
             </button>
+            {isLoading && <p>Generating explanation...</p>}
+            {explanation && (
+                <pre style={{ whiteSpace: "pre-wrap" }}>
+                {explanation}</pre>
+            )}
+
         </div>
     );
 } 

@@ -38,6 +38,8 @@ function App() {
   const [furnishedOnly, setFurnishedOnly] = useState(false);
   const [laundryOnly, setLaundryOnly] = useState(false);
   const [parkingOnly, setParkingOnly] = useState(false);
+  const [explanations, setExplanations] = useState<Record<number, string>>({});
+  const [loadingId, setLoadingId] = useState<number | null>(null);
 
   const filteredListings = listings.filter((listing) => {
     const matchesPrice =
@@ -98,11 +100,20 @@ function App() {
     return { ...listing, matchScore: score };
   });
   // sorting implemented here
-  const sortedListings = scoredListings.sort(
+  const sortedListings = [...scoredListings].sort(
     (a, b) => b.matchScore - a.matchScore
   );
   // ai feature
   const explainMatch = async (listing: any) => {
+    if (explanations[listing.id]) {
+      setExplanations((prev) => {
+      const updated = { ...prev };
+      delete updated[listing.id];
+      return updated;
+    });
+    return;
+  }
+    setLoadingId(listing.id);
     const explanation = await getMatchExplanation(
       {
         maxPrice,
@@ -116,7 +127,11 @@ function App() {
       listing,
       sortedListings
     );
-    alert(explanation);
+    setExplanations((prev) => ({
+      ...prev,
+      [listing.id]: explanation,
+    }));
+    setLoadingId(null);
   }
   return (
     <div>
@@ -172,11 +187,14 @@ function App() {
         </label>
       </div>
       <p>{filteredListings.length} listing(s) found</p>
-      {sortedListings.map((listing) => (
+      {sortedListings.map((listing, index) => (
         <ListingCard 
           key={listing.id} 
-          listing={listing} 
-          onExplainMatch={explainMatch}/>
+          listing={listing}
+          rank={index + 1} 
+          onExplainMatch={explainMatch}
+          explanation={explanations[listing.id] || ""}
+          isLoading={loadingId === listing.id}/>
       ))}
     </div>
   );
