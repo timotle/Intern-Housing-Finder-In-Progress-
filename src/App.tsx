@@ -1,6 +1,6 @@
-import { listings } from "./data/listings";
+import { useEffect, useState } from "react";
+import type { Listing } from "./types";
 import ListingCard from "./components/ListingCard";
-import { useState } from "react";
 async function getMatchExplanation(
   userPreferences: any,
   selectedListing: any,
@@ -41,6 +41,29 @@ function App() {
   const [explanations, setExplanations] = useState<Record<number, string>>({});
   const [loadingId, setLoadingId] = useState<number | null>(null);
 
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const fetchListings = async () => {
+      try {
+        const response = await fetch("http://localhost:5000/api/listings");
+        if (!response.ok) {
+          throw new Error("Failed to fetch listings");
+        }
+        const data: Listing[] = await response.json();
+        setListings(data);
+      } catch (err) {
+        console.error(err);
+        setError("Could not load listings");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchListings();
+  }, []);
+
   const filteredListings = listings.filter((listing) => {
     const matchesPrice =
       maxPrice === "" || listing.price <= Number(maxPrice);
@@ -76,15 +99,21 @@ function App() {
   //match score implemented here
   const scoredListings = filteredListings.map((listing) => {
     let score = 0;
-    if (maxPrice !== "" && listing.price <= Number(maxPrice)) {
-      score += 30;
-    }
-    if (maxCommuteTime !== "" && listing.commuteTime <= Number(maxCommuteTime)) {
-      score += 10;
-    }
+    // closer to the max the better
+    if (maxPrice !== "") {
+    const diff = Number(maxPrice) - listing.price;
+    score += Math.max(0, 30 - diff * 0.05);
+  }
+  // the shorter the better
+    if (maxCommuteTime !== "") {
+    const diff = listing.commuteTime - Number(maxCommuteTime);
+    score += Math.max(0, 20 - diff * 2);
+  }
+  // exact match lease
     if (leaseTerm !== "" && listing.leaseTerm === Number(leaseTerm)) {
-      score += 30;
-    }
+    score += 20;
+  }
+
     if (minBedrooms !== "" && listing.numBedroom >= Number(minBedrooms)) {
       score += 10;
     }
@@ -97,6 +126,7 @@ function App() {
     if (parkingOnly && listing.parking) {
       score += 5;
     }
+    
     return { ...listing, matchScore: score };
   });
   // sorting implemented here
@@ -133,6 +163,8 @@ function App() {
     }));
     setLoadingId(null);
   }
+  if (loading) return <p>Loading listings...</p>;
+  if (error) return <p>{error}</p>;
   return (
     <div>
       <h1>Intern Housing Finder</h1>
