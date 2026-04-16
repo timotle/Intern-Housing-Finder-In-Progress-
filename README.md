@@ -25,6 +25,6 @@ This is a full-stack web application I built to help students and interns find a
 Users input their housing preferences such as budget, commute distance, and lease duration. The application filters available listings based on these constraints. An AI component analyzes the filtered results and generates structured insights, including tradeoffs and personalized recommendations, a resulting match score based on the preferences, helping users understand which option best fits their needs.
 
 **What still needs development**
--fake listings need to be replaced by using GOOGLE MAP API 
--UI needs to be worked on
--Pytorch/ML needs to be implemented(experimental)
+- fake listings need to be replaced by using GOOGLE MAP API 
+- UI needs to be worked on
+- Pytorch/ML needs to be implemented(experimental)
