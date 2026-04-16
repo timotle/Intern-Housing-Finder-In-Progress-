@@ -1,4 +1,4 @@
-# Intern Housing Finder - DEADLINE IS 4/10
+# Intern Housing Finder - DEADLINE IS 4/20 
 
 **Overview**  
 This is a full-stack web application I built to help students and interns find and compare housing options when relocating for internships. Instead of searching across multiple websites, users can filter listings and get AI-generated recommendations based on their preferences.
@@ -23,3 +23,8 @@ This is a full-stack web application I built to help students and interns find a
 
 **How It Works**  
 Users input their housing preferences such as budget, commute distance, and lease duration. The application filters available listings based on these constraints. An AI component analyzes the filtered results and generates structured insights, including tradeoffs and personalized recommendations, a resulting match score based on the preferences, helping users understand which option best fits their needs.
+
+**What still needs development**
+-fake listings need to be replaced by using GOOGLE MAP API 
+-UI needs to be worked on
+-Pytorch/ML needs to be implemented(experimental)
