@@ -33,42 +33,41 @@ Users input their housing preferences such as budget, commute distance, and leas
 To run this project locally, follow these steps:
 
 1. Clone the repository  
-git clone https://github.com/yourusername/intern-housing-finder.git  
-cd intern-housing-finder  
+  Open a terminal and run:  
+  git clone https://github.com/timotle/Intern-Housing-Finder-In-Progress.git  
+  cd Intern-Housing-Finder-In-Progress  
 
 2. Install dependencies  
 
-Frontend:  
-cd client  
-npm install  
-
-Backend:  
-cd ../server  
-npm install  
+  Frontend:  
+  cd client  
+  npm install  
+  
+  Backend:  
+  cd ../server  
+  npm install  
 
 3. Set up environment variables  
 
-This project uses the OpenAI API for AI recommendations, but the API key is not included.  
+  This project uses the OpenAI API for AI recommendations, but the API key is not included for security reasons.  
+  Create a `.env` file inside the `/server` folder and add:  
+  OPENAI_API_KEY=your_api_key_here  
 
-Create a `.env` file inside the `/server` folder and add:  
-OPENAI_API_KEY=your_api_key_here  
-
--This project uses the OpenAI API for AI-powered recommendations, but the API key is not included for security reasons.
--To use the AI features, you will need your own ChatGPT/OpenAI account. From there, go to your settings, generate an API key, 
-and copy and paste it into the `.env` file.
--API usage may require billing depending on how much you use it.
--Once added, the recommendation system will work as expected. Without it, the filtering and comparison features will still run normally.
+  -To use the AI features, you will need your own ChatGPT/OpenAI account. From there, go to your settings, generate an API key, 
+  and copy and paste it into the `.env` file.  
+  -API usage may require billing depending on how much you use it.  
+  -Once added, the recommendation system will work as expected. Without it, the filtering and comparison features will still run normally.  
 
 4. Run the backend  
-cd server  
-npm start  
+  cd server  
+  npm start  
 
-5. Open a new terminal(front end)
-cd client  
-npm start  
+5. Run the frontend (open a new terminal)  
+  cd client  
+  npm start  
 
 6. Open the app  
-Go to http://localhost:3000  
+  Go to http://localhost:3000  
 
-**Notes**   
+**Notes**  
 - Make sure both frontend and backend are running at the same time  
