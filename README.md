@@ -54,12 +54,12 @@ To run this project locally, follow these steps:
    Create a `.env` file inside the `/server` folder and add:  
    OPENAI_API_KEY=your_api_key_here  
 
-   To use the AI features, you will need your own ChatGPT/OpenAI account. From there, go to your settings, generate an API key,
+   -To use the AI features, you will need your own ChatGPT/OpenAI account. From there, go to your settings, generate an API key,
    and copy and paste it into the `.env` file.  
 
-   API usage may require billing depending on how much you use it.  
+   -API usage may require billing.  
 
-   Once added, the recommendation system will work as expected. Without it, the filtering and comparison features will still run normally.  
+   -Once added, the recommendation system will work as expected. Without it, the filtering and comparison features will still run normally.  
 
 5. Run the backend  
    cd server  
