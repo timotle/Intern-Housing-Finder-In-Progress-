@@ -1,4 +1,4 @@
-# Intern Housing Finder - DEADLINE IS 4/20 
+# Intern Housing Finder - DEADLINE For Updates is 4/28 
 
 **Overview**  
 This is a full-stack web application I built to help students and interns find and compare housing options when relocating for internships. Instead of searching across multiple websites, users can filter listings and get AI-generated recommendations based on their preferences.
