@@ -25,6 +25,50 @@ This is a full-stack web application I built to help students and interns find a
 Users input their housing preferences such as budget, commute distance, and lease duration. The application filters available listings based on these constraints. An AI component analyzes the filtered results and generates structured insights, including tradeoffs and personalized recommendations, a resulting match score based on the preferences, helping users understand which option best fits their needs.
 
 **What Still Needs Development**
-- fake listings need to be replaced by using GOOGLE MAP API 
+- sample listings need to be replaced by using GOOGLE MAP API 
 - UI needs to be worked on
 - Pytorch/ML needs to be implemented(experimental)
+
+**Setup Instructions**  
+To run this project locally, follow these steps:
+
+1. Clone the repository  
+git clone https://github.com/yourusername/intern-housing-finder.git  
+cd intern-housing-finder  
+
+2. Install dependencies  
+
+Frontend:  
+cd client  
+npm install  
+
+Backend:  
+cd ../server  
+npm install  
+
+3. Set up environment variables  
+
+This project uses the OpenAI API for AI recommendations, but the API key is not included.  
+
+Create a `.env` file inside the `/server` folder and add:  
+OPENAI_API_KEY=your_api_key_here  
+
+-This project uses the OpenAI API for AI-powered recommendations, but the API key is not included for security reasons.
+-To use the AI features, you will need your own ChatGPT/OpenAI account. From there, go to your settings, generate an API key, 
+and copy and paste it into the `.env` file.
+-API usage may require billing depending on how much you use it.
+-Once added, the recommendation system will work as expected. Without it, the filtering and comparison features will still run normally.
+
+4. Run the backend  
+cd server  
+npm start  
+
+5. Open a new terminal(front end)
+cd client  
+npm start  
+
+6. Open the app  
+Go to http://localhost:3000  
+
+**Notes**   
+- Make sure both frontend and backend are running at the same time  
