@@ -33,41 +33,44 @@ Users input their housing preferences such as budget, commute distance, and leas
 To run this project locally, follow these steps:
 
 1. Clone the repository  
-  Open a terminal and run:  
-  git clone https://github.com/timotle/Intern-Housing-Finder-In-Progress.git  
-  cd Intern-Housing-Finder-In-Progress  
+   Open a terminal and run:  
+   git clone https://github.com/timotle/Intern-Housing-Finder-In-Progress.git  
+   cd Intern-Housing-Finder-In-Progress  
 
 2. Install dependencies  
 
-  Frontend:  
-  cd client  
-  npm install  
-  
-  Backend:  
-  cd ../server  
-  npm install  
+   Frontend:  
+   cd client  
+   npm install  
+
+   Backend:  
+   cd ../server  
+   npm install  
 
 3. Set up environment variables  
 
-  This project uses the OpenAI API for AI recommendations, but the API key is not included for security reasons.  
-  Create a `.env` file inside the `/server` folder and add:  
-  OPENAI_API_KEY=your_api_key_here  
+   This project uses the OpenAI API for AI recommendations, but the API key is not included for security reasons.  
 
-  -To use the AI features, you will need your own ChatGPT/OpenAI account. From there, go to your settings, generate an API key, 
-  and copy and paste it into the `.env` file.  
-  -API usage may require billing depending on how much you use it.  
-  -Once added, the recommendation system will work as expected. Without it, the filtering and comparison features will still run normally.  
+   Create a `.env` file inside the `/server` folder and add:  
+   OPENAI_API_KEY=your_api_key_here  
 
-4. Run the backend  
-  cd server  
-  npm start  
+   To use the AI features, you will need your own ChatGPT/OpenAI account. From there, go to your settings, generate an API key,
+   and copy and paste it into the `.env` file.  
 
-5. Run the frontend (open a new terminal)  
-  cd client  
-  npm start  
+   API usage may require billing depending on how much you use it.  
 
-6. Open the app  
-  Go to http://localhost:3000  
+   Once added, the recommendation system will work as expected. Without it, the filtering and comparison features will still run normally.  
+
+5. Run the backend  
+   cd server  
+   npm start  
+
+6. Run the frontend (open a new terminal)  
+   cd client  
+   npm start  
+
+7. Open the app  
+   Go to http://localhost:3000  
 
 **Notes**  
 - Make sure both frontend and backend are running at the same time  
