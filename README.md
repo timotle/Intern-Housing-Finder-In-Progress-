@@ -2,17 +2,17 @@
 
 ## Overview
 
-This is a full-stack web application I built to help students and interns find and compare housing options when relocating for internships. Instead of searching across multiple websites, users can filter listings and get AI-generated recommendations based on their preferences.
+This is a full-stack web app I built to help students and interns compare housing options when moving for internships. Instead of checking a bunch of different websites, users can filter listings, compare options, and get AI explanations for the tradeoffs.
 
 ## Features
 
-- Filter housing by price, commute distance, lease term, and number of occupants
-- Compare multiple listings side by side
-- Generate AI-powered recommendations for best-fit housing
-- Provide pros and cons for each listing
-- Explain tradeoffs between different housing options
-- Simple navigation and clean user interface
-- Provide a match score based on the user's preferences
+- Filter housing by price, commute time, lease term, bedrooms, and amenities
+- Rank listings with a match score
+- Drag and reorder ranking rules based on what the user cares about most
+- View 4 listings at a time so the page does not feel overwhelming
+- Compare listings with bar graph and line graph views
+- Get AI explanations for housing tradeoffs
+- Simple UI made for students and interns
 
 ## Languages/Tools/Frameworks
 
@@ -22,77 +22,69 @@ This is a full-stack web application I built to help students and interns find a
 - Express
 - HTML/CSS
 - OpenAI API
-- PyTorch (in progress)
+- PyTorch/ML (in progress)
 
 ## How It Works
 
-Users input their housing preferences such as budget, commute distance, and lease duration. The application filters available listings based on these constraints. An AI component analyzes the filtered results and generates structured insights, including tradeoffs and personalized recommendations. The app also calculates a match score based on the user's preferences, helping users understand which option best fits their needs.
+Users enter their housing preferences, like budget, commute time, lease length, bedrooms, and amenities. The app filters the listings and ranks them with a match score. Users can also drag the ranking rules to choose what matters most to them, like cheaper rent, shorter commute, or more bedrooms.
+
+The AI part explains tradeoffs between housing options in a way that is easier to understand.
 
 ## What Still Needs Development
 
-- Sample listings need to be replaced by using the Google Maps API
-- UI needs to be worked on
-- PyTorch/ML needs to be implemented experimentally
+- Replace sample listings with real listing/map data using the Google Maps API
+- Keep improving the UI
+- Add PyTorch/ML experiments later
 
 ## Setup Instructions
-
-To run this project locally, follow these steps:
 
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/timotle/Intern-Housing-Finder-In-Progress.git
-   cd Intern-Housing-Finder-In-Progress
+   git clone https://github.com/timotle/Intern-Housing-Finder-In-Progress-.git
+   cd Intern-Housing-Finder-In-Progress-
    ```
 
-2. Install dependencies:
-
-   Frontend:
+2. Install frontend dependencies:
 
    ```bash
    npm install
    ```
 
-   Backend:
+3. Install backend dependencies:
 
    ```bash
    cd server
    npm install
    ```
 
-3. Set up environment variables:
+4. Add your OpenAI API key:
 
-   This project uses the OpenAI API for AI recommendations, but the API key is not included for security reasons.
-
-   Create a `.env` file inside the `/server` folder and add:
+   Create a `.env` file inside the `server` folder and add:
 
    ```env
    OPENAI_API_KEY=your_api_key_here
    ```
 
-   To use the AI features, you will need your own ChatGPT/OpenAI account. From there, go to your settings, generate an API key, and copy and paste it into the `.env` file.
+   The AI explanation feature needs an OpenAI API key. Without it, the filtering, ranking, and charts can still work.
 
-   API usage may require billing.
-
-   Once added, the recommendation system will work as expected. Without it, the filtering and comparison features will still run normally.
-
-4. Run the backend:
+5. Run the backend:
 
    ```bash
    cd server
    npm start
    ```
 
-5. Run the frontend in a new terminal:
+6. Run the frontend in a new terminal:
 
    ```bash
    npm run dev
    ```
 
-6. Open the app:
+7. Open the app:
 
    Go to `http://localhost:5173`
 
 ## Notes
 
-Make sure both frontend and backend are running at the same time.
+Make sure the frontend and backend are both running at the same time.

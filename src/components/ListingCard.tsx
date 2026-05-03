@@ -1,4 +1,10 @@
-function ListingCard({ listing, rank, onExplainMatch, explanation, isLoading }: any) {
+function ListingCard({
+    listing,
+    rank,
+    onExplainMatch,
+    explanation,
+    isLoading,
+}: any) {
     return(
         <article className="listing-row">
             <div className="listing-card">
