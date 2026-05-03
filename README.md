@@ -1,4 +1,4 @@
-# Intern Housing Finder - DEADLINE For Updates is 4/28
+# Intern Housing Finder
 
 ## Overview
 
