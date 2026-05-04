@@ -67,7 +67,7 @@ The AI part explains tradeoffs between housing options in a way that is easier t
    ```
 
    The AI explanation feature needs an OpenAI API key. Without it, the filtering, ranking, and charts can still work.
-
+   *Using OpenAI API may require billing
 5. Run the backend:
 
    ```bash
