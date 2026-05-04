@@ -27,13 +27,15 @@ type ScoreCategoryKey = "budget" | "commute" | "lease" | "bedrooms" | "amenities
 type ChartMetric = "matchScore" | "price" | "commuteTime" | "leaseTerm" | "numBedroom";
 type ChartType = "bar" | "line";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+
 async function getMatchExplanation(
   userPreferences: any,
   selectedListing: any,
   visibleListings: any[]
 ) {
   try {
-    const response = await fetch("http://localhost:5000/api/explain-match", {
+    const response = await fetch(`${API_BASE_URL}/api/explain-match`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -390,7 +392,7 @@ function App() {
   useEffect(() => {
     const fetchListings = async () => {
       try {
-        const response = await fetch("http://localhost:5000/api/listings");
+        const response = await fetch(`${API_BASE_URL}/api/listings`);
         if (!response.ok) {
           throw new Error("Failed to fetch listings");
         }

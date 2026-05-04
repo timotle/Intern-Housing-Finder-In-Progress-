@@ -88,3 +88,15 @@ The AI part explains tradeoffs between housing options in a way that is easier t
 ## Notes
 
 Make sure the frontend and backend are both running at the same time.
+
+## Vercel Deployment
+
+For Vercel, do not upload the `.env` file to GitHub. That file has the API key, so it should stay private.
+
+When the project is imported into Vercel, add this Environment Variable in the Vercel project settings:
+
+```env
+OPENAI_API_KEY=your_api_key_here
+```
+
+Vercel will use the `api` folder for the backend routes. The frontend will call `/api/listings` and `/api/explain-match` after it is deployed.
