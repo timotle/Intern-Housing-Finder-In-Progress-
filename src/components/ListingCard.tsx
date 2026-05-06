@@ -5,12 +5,13 @@ function ListingCard({
     explanation,
     isLoading,
     hideScore,
+    rankLabel = "Rank",
 }: any) {
     return(
         <article className="listing-row">
             <div className="listing-card">
                 <div className="listing-topline">
-                    <span>Rank #{rank}</span>
+                    <span>{rankLabel} #{rank}</span>
                     {!hideScore && listing.matchScore !== undefined && (
                         <strong>{Math.round(listing.matchScore)} match score</strong>
                     )}

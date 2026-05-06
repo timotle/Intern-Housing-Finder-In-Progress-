@@ -659,7 +659,7 @@ function App() {
     interactions,
   });
   const viewedListingIds = new Set(interactions.explanationClicks);
-  const isTasteProfileReady = activePage === "results" && viewedListingIds.size >= 2;
+  const isTasteProfileReady = activePage === "results" && viewedListingIds.size >= 3;
 
   const movePriority = (targetCategory: ScoreCategoryKey) => {
     if (!draggedPriority || draggedPriority === targetCategory) {
@@ -935,7 +935,7 @@ function App() {
             }}
             type="button"
           >
-            Continue <span aria-hidden="true">&rarr;</span>
+            Save & Continue <span aria-hidden="true">&rarr;</span>
           </button>
         </div>
       </section>
@@ -1025,7 +1025,7 @@ function App() {
               }}
               type="button"
             >
-              Continue <span aria-hidden="true">&rarr;</span>
+              Save & Continue <span aria-hidden="true">&rarr;</span>
             </button>
           </div>
       </section>
@@ -1148,7 +1148,8 @@ function App() {
               onExplainMatch={explainMatch}
               explanation={explanations[listing.id] || ""}
               isLoading={loadingId === listing.id}
-              hideScore={rankingMode === "skipped"}/>
+              hideScore={rankingMode === "skipped"}
+              rankLabel={rankingMode === "skipped" ? "Listing" : "Rank"}/>
           ))}
         </div>
       </section>
