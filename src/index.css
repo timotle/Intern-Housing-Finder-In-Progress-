@@ -76,10 +76,111 @@ button:disabled:hover {
   padding: 40px 20px 56px;
 }
 
-.hero-section {
+.app-header {
   display: grid;
   gap: 1rem;
   padding: clamp(2rem, 6vw, 4.5rem) 0 2rem;
+}
+
+.step-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 0.5rem;
+}
+
+.step-nav span {
+  background: #ffffff;
+  border: 1px solid rgba(66, 133, 244, 0.24);
+  border-radius: 999px;
+  color: var(--accent-dark);
+  font-size: 0.9rem;
+  font-weight: 900;
+  padding: 0.55rem 0.8rem;
+}
+
+.step-nav span.is-active {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.page-section.is-hidden {
+  display: none;
+}
+
+.home-page {
+  margin-top: 1rem;
+}
+
+.home-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.home-card {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 0.85rem;
+  padding: clamp(1.1rem, 3vw, 1.4rem);
+}
+
+.home-card p:not(.eyebrow) {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.home-card button {
+  justify-self: start;
+}
+
+.start-panel,
+.page-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+.start-panel {
+  justify-content: center;
+  margin-top: 1.5rem;
+}
+
+.start-panel button {
+  min-width: 160px;
+}
+
+.results-page {
+  display: block;
+}
+
+.results-layout {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.results-layout .chart-panel,
+.results-layout .results-section {
+  margin-top: 0;
+}
+
+.back-button {
+  align-items: center;
+  border-radius: 999px;
+  bottom: 24px;
+  box-shadow: var(--shadow);
+  display: inline-flex;
+  font-size: 0.95rem;
+  gap: 0.45rem;
+  height: 48px;
+  justify-content: center;
+  left: 24px;
+  padding: 0 1rem;
+  position: fixed;
+  z-index: 20;
 }
 
 .eyebrow {
@@ -328,25 +429,14 @@ h3 {
   font-weight: 700;
 }
 
-.priority-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-  margin-top: 1rem;
-}
-
-.priority-summary {
+.ai-note {
   background: rgba(66, 133, 244, 0.08);
-  border: 1px solid rgba(66, 133, 244, 0.18);
+  border: 1px solid rgba(66, 133, 244, 0.2);
   border-radius: 8px;
   display: grid;
-  gap: 0.1rem;
-  padding: 0.6rem 0.75rem;
-}
-
-.priority-summary strong {
-  color: var(--text);
-  font-size: 0.86rem;
+  gap: 0.35rem;
+  margin-top: 1rem;
+  padding: 0.9rem;
 }
 
 .chart-header {
@@ -447,6 +537,14 @@ h3 {
   font-size: 0.8rem;
   font-weight: 900;
   text-anchor: middle;
+}
+
+.chart-bar-value {
+  fill: #174ea6;
+}
+
+.chart-bar-value.is-highlighted {
+  fill: #202124;
 }
 
 .chart-frame.is-dense .chart-value,
@@ -628,7 +726,8 @@ h3 {
 
 @media (max-width: 820px) {
   .filter-grid,
-  .listing-row {
+  .listing-row,
+  .home-grid {
     grid-template-columns: 1fr;
   }
 

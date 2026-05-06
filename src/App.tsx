@@ -26,6 +26,8 @@ type ScoredListing = Listing & {
 type ScoreCategoryKey = "budget" | "commute" | "lease" | "bedrooms" | "amenities";
 type ChartMetric = "matchScore" | "price" | "commuteTime" | "leaseTerm" | "numBedroom";
 type ChartType = "bar" | "line";
+type PageKey = "home" | "preferences" | "ranking" | "results";
+type StepPageKey = Exclude<PageKey, "home">;
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -300,9 +302,11 @@ function ListingMetricChart({
                   rx="8"
                 />
                 <text
-                  className="chart-value"
+                  className={`chart-value chart-bar-value ${
+                    highlightedListingIds.includes(listings[index].id) ? "is-highlighted" : ""
+                  }`}
                   x={x + barWidth / 2}
-                  y={Math.max(20, y - 8 - (isDenseChart ? (index % 2) * 16 : 0))}
+                  y={Math.min(chartHeight - paddingBottom - 8, y + 22)}
                 >
                   {Math.round(value)}
                 </text>
@@ -354,6 +358,7 @@ function ListingMetricChart({
 
 function App() {
   const listingsPerPage = 4;
+  const [activePage, setActivePage] = useState<PageKey>("home");
   const [maxPrice, setMaxPrice] = useState("");
   const [maxCommuteTime, setMaxCommuteTime] = useState("");
   const [leaseTerm, setLeaseTerm] = useState("");
@@ -468,6 +473,14 @@ function App() {
   const visibleListingIds = visiblePageListings.map((listing) => listing.id);
   const visibleStartRank = sortedListings.length === 0 ? 0 : currentPageStart + 1;
   const visibleEndRank = Math.min(currentPageStart + listingsPerPage, sortedListings.length);
+  const stepPages: Array<{ key: StepPageKey; label: string }> = [
+    { key: "preferences", label: "Preferences" },
+    { key: "ranking", label: "Ranking Rules" },
+    { key: "results", label: "Results" },
+  ];
+  const currentStepIndex = stepPages.findIndex((page) => page.key === activePage);
+  const previousPage: PageKey =
+    currentStepIndex <= 0 ? "home" : stepPages[currentStepIndex - 1].key;
 
   const movePriority = (targetCategory: ScoreCategoryKey) => {
     if (!draggedPriority || draggedPriority === targetCategory) {
@@ -543,7 +556,7 @@ function App() {
   if (error) return <p>{error}</p>;
   return (
     <main className="app-shell">
-      <section className="hero-section">
+      <header className="app-header">
         <p className="eyebrow">AI-assisted decision support</p>
         <h1>
           Intern <span className="title-keep">Housing Finder</span>
@@ -557,9 +570,52 @@ function App() {
           <span>Transparent tradeoffs</span>
           <span>Student-friendly explanations</span>
         </div>
+        {activePage !== "home" && (
+          <nav className="step-nav" aria-label="Current step">
+            {stepPages.map((page, index) => (
+              <span
+                className={activePage === page.key ? "is-active" : ""}
+                key={page.key}
+              >
+                Step {index + 1}: {page.label}
+              </span>
+            ))}
+          </nav>
+        )}
+      </header>
+
+      <section className={`page-section home-page ${activePage === "home" ? "" : "is-hidden"}`}>
+        <div className="home-grid">
+          <article className="home-card">
+            <p className="eyebrow">Step 1</p>
+            <h3>Set preferences</h3>
+            <p>Choose budget, commute, lease, bedrooms, and must-have amenities.</p>
+          </article>
+          <article className="home-card">
+            <p className="eyebrow">Step 2</p>
+            <h3>Rank priorities</h3>
+            <p>
+              Drag the priority cards in order from most important to least
+              important.
+            </p>
+          </article>
+          <article className="home-card">
+            <p className="eyebrow">Step 3</p>
+            <h3>Compare results</h3>
+            <p>
+              See your filtered listings, compare them visually, and review the
+              options four at a time.
+            </p>
+          </article>
+        </div>
+        <div className="start-panel">
+          <button onClick={() => setActivePage("preferences")} type="button">
+            Start
+          </button>
+        </div>
       </section>
 
-      <section className="decision-panel">
+      <section className={`page-section decision-panel ${activePage === "preferences" ? "" : "is-hidden"}`}>
         <div className="panel-heading">
           <p className="eyebrow">User preferences</p>
           <h2>Filter the decision space</h2>
@@ -630,9 +686,14 @@ function App() {
             Parking only
           </label>
         </div>
+        <div className="page-actions">
+          <button onClick={() => setActivePage("ranking")} type="button">
+            Continue <span aria-hidden="true">&rarr;</span>
+          </button>
+        </div>
       </section>
 
-      <section className="rules-panel">
+      <section className={`page-section rules-panel ${activePage === "ranking" ? "" : "is-hidden"}`}>
           <div className="panel-heading">
             <p className="eyebrow">Personal ranking</p>
             <h2>Ranking Rules</h2>
@@ -689,16 +750,24 @@ function App() {
               );
             })}
           </div>
-          <div className="priority-actions" aria-label="Priority quick actions">
-            {priorityOrder.map((category, index) => (
-              <article className="priority-summary" key={category}>
-                <strong>{scoreCategories[category].shortLabel}</strong>
-                <span>{index === 0 ? "Most important" : `Priority ${index + 1}`}</span>
-              </article>
-            ))}
+          <div className="ai-note">
+            <p className="eyebrow">Your ranking</p>
+            <p>
+              Most important: <strong>{scoreCategories[priorityOrder[0]].label}</strong>.
+              Least important:{" "}
+              <strong>{scoreCategories[priorityOrder[priorityOrder.length - 1]].label}</strong>.
+              Ready to move to the next step!
+            </p>
+          </div>
+          <div className="page-actions">
+            <button onClick={() => setActivePage("results")} type="button">
+              Continue <span aria-hidden="true">&rarr;</span>
+            </button>
           </div>
       </section>
 
+      <section className={`page-section results-page ${activePage === "results" ? "" : "is-hidden"}`}>
+      <div className="results-layout">
       <section className="chart-panel">
         <div className="chart-header">
           <div>
@@ -763,7 +832,7 @@ function App() {
             disabled={currentPage === 0}
             aria-label="Previous listings"
           >
-            <span aria-hidden="true">←</span>
+            <span aria-hidden="true">&larr;</span>
           </button>
           <p>
             Showing ranks <strong>{visibleStartRank}-{visibleEndRank}</strong> of{" "}
@@ -778,7 +847,7 @@ function App() {
             disabled={currentPage >= totalPages - 1}
             aria-label="Next listings"
           >
-            <span aria-hidden="true">→</span>
+            <span aria-hidden="true">&rarr;</span>
           </button>
         </div>
 
@@ -794,6 +863,18 @@ function App() {
           ))}
         </div>
       </section>
+      </div>
+      </section>
+      {activePage !== "home" && (
+        <button
+          className="back-button"
+          onClick={() => setActivePage(previousPage)}
+          type="button"
+          aria-label="Go back"
+        >
+          <span aria-hidden="true">&larr;</span> Back
+        </button>
+      )}
     </main>
   );
 }
