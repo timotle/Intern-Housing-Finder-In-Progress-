@@ -512,7 +512,6 @@ function App() {
   const [currentPage, setCurrentPage] = useState(0);
   const [chartType, setChartType] = useState<ChartType>("bar");
   const [chartMetric, setChartMetric] = useState<ChartMetric>("matchScore");
-  const [preferencesSkipped, setPreferencesSkipped] = useState(false);
   const [rankingMode, setRankingMode] = useState<RankingMode>("default");
   const [showTasteProfile, setShowTasteProfile] = useState(false);
   const [dismissedTastePrompt, setDismissedTastePrompt] = useState(false);
@@ -546,15 +545,6 @@ function App() {
     laundryOnly,
     parkingOnly,
   };
-  const hasActivePreferences =
-    maxPrice !== "" ||
-    maxCommuteTime !== "" ||
-    leaseTerm !== "" ||
-    minBedrooms !== "" ||
-    furnishedOnly ||
-    laundryOnly ||
-    parkingOnly;
-
   useEffect(() => {
     const fetchListings = async () => {
       try {
@@ -914,7 +904,6 @@ function App() {
           <button
             className="secondary-button"
             onClick={() => {
-              setPreferencesSkipped(true);
               setMaxPrice("");
               setMaxCommuteTime("");
               setLeaseTerm("");
@@ -930,7 +919,6 @@ function App() {
           </button>
           <button
             onClick={() => {
-              setPreferencesSkipped(!hasActivePreferences);
               setActivePage("ranking");
             }}
             type="button"
@@ -1093,12 +1081,6 @@ function App() {
             <p className="eyebrow">{rankingMode === "skipped" ? "Browsing output" : "Ranked output"}</p>
             <h2>{filteredListings.length} listing(s) found</h2>
           </div>
-          <p>
-            {rankingMode === "skipped"
-              ? "Ranking Rules were skipped, so these listings are shown in a random browsing order."
-              : "Listings are sorted by a structured match score before the AI explains the selected option."}
-            {preferencesSkipped && " No preference filters were applied."}
-          </p>
         </div>
 
         <div className="listing-pager" aria-label="Listing navigation">
