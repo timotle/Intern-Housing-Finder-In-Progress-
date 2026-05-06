@@ -4,18 +4,19 @@ function ListingCard({
     onExplainMatch,
     explanation,
     isLoading,
+    hideScore,
 }: any) {
     return(
         <article className="listing-row">
             <div className="listing-card">
                 <div className="listing-topline">
                     <span>Rank #{rank}</span>
-                    {listing.matchScore !== undefined && (
+                    {!hideScore && listing.matchScore !== undefined && (
                         <strong>{Math.round(listing.matchScore)} match score</strong>
                     )}
                 </div>
                 <h3>{listing.name}</h3>
-                {listing.matchScore !== undefined && (
+                {!hideScore && listing.matchScore !== undefined && (
                     <p className="score-note">
                         Scored from price, commute, lease, bedrooms, and amenities.
                     </p>
