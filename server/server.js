@@ -6,6 +6,16 @@ const app = express();
 const PORT = 5000;
 app.use(cors());
 app.use(express.json());
+
+function getOpenAIKey() {
+  const rawKey = process.env.OPENAI_API_KEY || "";
+  return rawKey
+    .trim()
+    .replace(/^OPENAI_API_KEY\s*=\s*/i, "")
+    .replace(/^["']|["']$/g, "")
+    .trim();
+}
+
 app.get("/api/listings", (req, res) => {
   const listings = [
   {
@@ -255,7 +265,7 @@ app.get("/api/listings", (req, res) => {
 
 
 const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: getOpenAIKey(),
 });
 app.get("/", (req, res) => {
   res.send("Backend is running");
@@ -263,7 +273,7 @@ app.get("/", (req, res) => {
 app.post("/api/explain-match", async (req, res) => {
   try {
     console.log("Request body:", req.body);
-    console.log("API key loaded:", !!process.env.OPENAI_API_KEY);
+    console.log("API key loaded:", !!getOpenAIKey());
 
     const { userPreferences, selectedListing, visibleListings } = req.body;
 
@@ -328,8 +338,14 @@ ${JSON.stringify(visibleListings)}
   } catch (error) {
     console.error("FULL BACKEND ERROR:");
     console.error(error);
-    res.status(500).json({
-      error: error.message || "Unknown server error",
+    const statusCode = error.status || 500;
+    const friendlyMessage =
+      statusCode === 401
+        ? "The AI explanation is not available right now because the API key needs to be updated."
+        : "The AI explanation could not be generated right now. Please try again soon.";
+
+    res.status(statusCode).json({
+      error: friendlyMessage,
     });
   }
 });

@@ -688,13 +688,13 @@ h3 {
 }
 
 .listing-row.has-explanation .listing-card {
-  animation: listingSlideRight 280ms ease both;
-  order: 2;
+  animation: listingSlideLeft 280ms ease both;
+  order: 1;
 }
 
 .listing-row.has-explanation .explanation-card {
   animation: explanationSlideIn 280ms ease both;
-  order: 1;
+  order: 2;
 }
 
 .listing-card,
@@ -786,7 +786,7 @@ h3 {
 @keyframes explanationSlideIn {
   from {
     opacity: 0;
-    transform: translateX(18px);
+    transform: translateX(-18px);
   }
 
   to {
@@ -795,9 +795,9 @@ h3 {
   }
 }
 
-@keyframes listingSlideRight {
+@keyframes listingSlideLeft {
   from {
-    transform: translateX(-12px);
+    transform: translateX(12px);
   }
 
   to {

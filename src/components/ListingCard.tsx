@@ -11,16 +11,6 @@ function ListingCard({
 
     return(
         <article className={`listing-row ${isExplanationOpen ? "has-explanation" : ""}`}>
-            {isExplanationOpen && (
-                <div className="explanation-card">
-                    <p className="eyebrow">AI explanation</p>
-                    {isLoading ? (
-                        <p className="loading-note">Generating explanation...</p>
-                    ) : (
-                        <pre>{explanation}</pre>
-                    )}
-                </div>
-            )}
             <div className="listing-card">
                 <div className="listing-topline">
                     <span>{rankLabel} #{rank}</span>
@@ -66,6 +56,16 @@ function ListingCard({
                           : "Explain tradeoffs"}
                 </button>
             </div>
+            {isExplanationOpen && (
+                <div className="explanation-card">
+                    <p className="eyebrow">AI explanation</p>
+                    {isLoading ? (
+                        <p className="loading-note">Generating explanation...</p>
+                    ) : (
+                        <pre>{explanation}</pre>
+                    )}
+                </div>
+            )}
         </article>
     );
 } 

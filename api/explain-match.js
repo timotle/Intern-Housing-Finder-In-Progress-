@@ -1,5 +1,16 @@
+function getOpenAIKey() {
+  const rawKey = process.env.OPENAI_API_KEY ?? "";
+  return rawKey
+    .trim()
+    .replace(/^OPENAI_API_KEY\s*=\s*/i, "")
+    .replace(/^["']|["']$/g, "")
+    .trim();
+}
+
 async function handleExplainMatch(body) {
-  if (!process.env.OPENAI_API_KEY) {
+  const openAIKey = getOpenAIKey();
+
+  if (!openAIKey) {
     return {
       status: 500,
       body: { error: "OpenAI API key is not set up yet." },
@@ -61,7 +72,7 @@ ${JSON.stringify(visibleListings)}
   const openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      Authorization: `Bearer ${openAIKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -75,7 +86,12 @@ ${JSON.stringify(visibleListings)}
   if (!openaiResponse.ok) {
     return {
       status: openaiResponse.status,
-      body: { error: data.error?.message || "OpenAI request failed." },
+      body: {
+        error:
+          openaiResponse.status === 401
+            ? "The AI explanation is not available right now because the API key needs to be updated."
+            : "The AI explanation could not be generated right now. Please try again soon.",
+      },
     };
   }
 
