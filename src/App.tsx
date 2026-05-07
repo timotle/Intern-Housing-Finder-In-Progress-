@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Listing } from "./types";
 import ListingCard from "./components/ListingCard";
-import { predictTasteProfile } from "./data/tasteProfileModel";
 
 type UserPreferences = {
   maxPrice: string;
@@ -19,7 +18,12 @@ type ScoreBreakdownItem = {
   explanation: string;
 };
 
-type ScoredListing = Listing & {
+type ExplainableListing = Listing & {
+  matchScore?: number;
+  scoreBreakdown?: ScoreBreakdownItem[];
+};
+
+type ScoredListing = ExplainableListing & {
   matchScore: number;
   scoreBreakdown: ScoreBreakdownItem[];
 };
@@ -47,9 +51,9 @@ type TasteProfile = {
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 async function getMatchExplanation(
-  userPreferences: any,
-  selectedListing: any,
-  visibleListings: any[]
+  userPreferences: UserPreferences,
+  selectedListing: ExplainableListing,
+  visibleListings: ExplainableListing[]
 ) {
   try {
     const response = await fetch(`${API_BASE_URL}/api/explain-match`, {
@@ -72,7 +76,14 @@ async function getMatchExplanation(
 
     return data.explanation;
   } catch (error) {
-    console.error("The explanation erorr:", error);
+    console.error("The explanation error:", error);
+    if (
+      error instanceof Error &&
+      /api key|incorrect api key|unauthorized/i.test(error.message)
+    ) {
+      return "Sorry, the AI explanation could not be generated right now because the API key needs to be updated.";
+    }
+
     return error instanceof Error
       ? `Sorry, the AI explanation could not be generated right now. ${error.message}`
       : "Sorry, the AI explanation could not be generated right now.";
@@ -137,6 +148,15 @@ function scoreHigherIsBetter(value: number, min: number, max: number, maxPoints:
     return maxPoints;
   }
   return ((value - min) / (max - min)) * maxPoints;
+}
+
+function getMedianValue(values: number[]) {
+  if (values.length === 0) {
+    return 0;
+  }
+
+  const sortedValues = [...values].sort((a, b) => a - b);
+  return sortedValues[Math.floor(sortedValues.length / 2)];
 }
 
 function calculateScoreBreakdown(
@@ -225,14 +245,12 @@ const chartMetrics: Record<ChartMetric, { label: string; suffix: string }> = {
 };
 
 function inferTasteProfile({
-  preferences,
   priorityOrder,
   rankingMode,
   chartMetric,
   sortedListings,
   interactions,
 }: {
-  preferences: UserPreferences;
   priorityOrder: ScoreCategoryKey[];
   rankingMode: RankingMode;
   chartMetric: ChartMetric;
@@ -253,43 +271,24 @@ function inferTasteProfile({
     });
   }
 
-  if (preferences.maxPrice !== "") {
-    categoryScores.budget += Number(preferences.maxPrice) <= 1500 ? 2.5 : 1;
-  }
-  if (preferences.maxCommuteTime !== "") {
-    categoryScores.commute += Number(preferences.maxCommuteTime) <= 15 ? 2.5 : 1;
-  }
-  if (preferences.leaseTerm !== "") {
-    categoryScores.lease += 1.5;
-  }
-  if (preferences.minBedrooms !== "") {
-    categoryScores.bedrooms += Number(preferences.minBedrooms) >= 2 ? 2 : 1;
-  }
-  const requiredAmenities = [
-    preferences.furnishedOnly,
-    preferences.laundryOnly,
-    preferences.parkingOnly,
-  ].filter(Boolean).length;
-  categoryScores.amenities += requiredAmenities * 1.2;
-
-  if (chartMetric === "price") categoryScores.budget += 1.5;
-  if (chartMetric === "commuteTime") categoryScores.commute += 1.5;
-  if (chartMetric === "leaseTerm") categoryScores.lease += 1.5;
-  if (chartMetric === "numBedroom") categoryScores.bedrooms += 1.5;
+  if (chartMetric === "price") categoryScores.budget += 0.75;
+  if (chartMetric === "commuteTime") categoryScores.commute += 0.75;
+  if (chartMetric === "leaseTerm") categoryScores.lease += 0.75;
+  if (chartMetric === "numBedroom") categoryScores.bedrooms += 0.75;
 
   const clickedListings = sortedListings.filter((listing) =>
     interactions.explanationClicks.includes(listing.id)
   );
-  const medianPrice = sortedListings[Math.floor(sortedListings.length / 2)]?.price ?? 0;
-  const medianCommute = sortedListings[Math.floor(sortedListings.length / 2)]?.commuteTime ?? 0;
+  const medianPrice = getMedianValue(sortedListings.map((listing) => listing.price));
+  const medianCommute = getMedianValue(sortedListings.map((listing) => listing.commuteTime));
 
   clickedListings.forEach((listing) => {
-    if (medianPrice > 0 && listing.price <= medianPrice) categoryScores.budget += 1;
-    if (medianCommute > 0 && listing.commuteTime <= medianCommute) categoryScores.commute += 1;
-    if (listing.leaseTerm <= 12) categoryScores.lease += 0.6;
-    if (listing.numBedroom >= 2) categoryScores.bedrooms += 0.9;
+    if (medianPrice > 0 && listing.price <= medianPrice) categoryScores.budget += 0.7;
+    if (medianCommute > 0 && listing.commuteTime <= medianCommute) categoryScores.commute += 0.7;
+    if (listing.leaseTerm <= 12) categoryScores.lease += 0.45;
+    if (listing.numBedroom >= 2) categoryScores.bedrooms += 0.55;
     if ([listing.furnished, listing.laundry, listing.parking].filter(Boolean).length >= 2) {
-      categoryScores.amenities += 0.9;
+      categoryScores.amenities += 0.55;
     }
   });
 
@@ -297,44 +296,31 @@ function inferTasteProfile({
     .sort((a, b) => b[1] - a[1]);
   const [topCategory, topScore] = rankedSignals[0];
   const secondCategory = rankedSignals[1][0];
-  const isBalanced = topScore - rankedSignals[1][1] < 1.25;
-  const priorityStrength = (category: ScoreCategoryKey) =>
-    rankingMode === "skipped"
-      ? 0
-      : (priorityOrder.length - priorityOrder.indexOf(category)) / priorityOrder.length;
-  const predictedProfile = predictTasteProfile({
-    budgetPriority: priorityStrength("budget"),
-    commutePriority: priorityStrength("commute"),
-    leasePriority: priorityStrength("lease"),
-    bedroomsPriority: priorityStrength("bedrooms"),
-    amenitiesPriority: priorityStrength("amenities"),
-    strictBudget: preferences.maxPrice !== "" && Number(preferences.maxPrice) <= 1500 ? 1 : 0,
-    strictCommute:
-      preferences.maxCommuteTime !== "" && Number(preferences.maxCommuteTime) <= 15 ? 1 : 0,
-    leaseSet: preferences.leaseTerm !== "" ? 1 : 0,
-    bedroomNeed: preferences.minBedrooms !== "" && Number(preferences.minBedrooms) >= 2 ? 1 : 0,
-    amenityNeed: requiredAmenities / 3,
-    priceChart: chartMetric === "price" ? 1 : 0,
-    commuteChart: chartMetric === "commuteTime" ? 1 : 0,
-    leaseChart: chartMetric === "leaseTerm" ? 1 : 0,
-    bedroomChart: chartMetric === "numBedroom" ? 1 : 0,
-    explanationActivity: Math.min(interactions.explanationClicks.length / 3, 1),
-    pagingActivity: Math.min(interactions.listingPageChanges / 3, 1),
-  });
+  const topPriority = rankingMode === "skipped" ? null : priorityOrder[0];
+  const secondPriority = rankingMode === "skipped" ? null : priorityOrder[1];
+  const isBalanced = topScore - rankedSignals[1][1] < 0.75;
 
   let title = "Balanced bestie";
-  if (predictedProfile === "budget_commuter") {
+  if (topPriority === "budget" && secondPriority === "commute") {
     title = "Lime scooter warrior";
-  } else if (predictedProfile === "budget_first") {
+  } else if (topPriority === "budget") {
     title = "King Rent";
-  } else if (predictedProfile === "convenience") {
+  } else if (topPriority === "commute") {
     title = "Got no Lime scooter?";
-  } else if (predictedProfile === "lease_planner") {
+  } else if (topPriority === "lease") {
     title = "Lease locked in";
-  } else if (predictedProfile === "comfort") {
-    title = "Chud";
+  } else if (topPriority === "bedrooms" || topPriority === "amenities") {
+    title = "Mr. Snorlax";
   } else if (!isBalanced && topCategory === "budget" && secondCategory === "commute") {
     title = "Lime scooter warrior";
+  } else if (!isBalanced && topCategory === "budget") {
+    title = "King Rent";
+  } else if (!isBalanced && topCategory === "commute") {
+    title = "Got no Lime scooter?";
+  } else if (!isBalanced && topCategory === "lease") {
+    title = "Lease locked in";
+  } else if (!isBalanced && (topCategory === "bedrooms" || topCategory === "amenities")) {
+    title = "Mr. Snorlax";
   }
 
   return {
@@ -502,6 +488,13 @@ function ListingMetricChart({
 
 function App() {
   const listingsPerPage = 4;
+  const defaultPriorityOrder: ScoreCategoryKey[] = [
+    "budget",
+    "commute",
+    "lease",
+    "bedrooms",
+    "amenities",
+  ];
   const [activePage, setActivePage] = useState<PageKey>("home");
   const [maxPrice, setMaxPrice] = useState("");
   const [maxCommuteTime, setMaxCommuteTime] = useState("");
@@ -511,7 +504,7 @@ function App() {
   const [laundryOnly, setLaundryOnly] = useState(false);
   const [parkingOnly, setParkingOnly] = useState(false);
   const [explanations, setExplanations] = useState<Record<number, string>>({});
-  const [loadingId, setLoadingId] = useState<number | null>(null);
+  const [loadingIds, setLoadingIds] = useState<number[]>([]);
   const [currentPage, setCurrentPage] = useState(0);
   const [chartType, setChartType] = useState<ChartType>("bar");
   const [chartMetric, setChartMetric] = useState<ChartMetric>("matchScore");
@@ -526,13 +519,7 @@ function App() {
     chartMetricChanges: 0,
     listingPageChanges: 0,
   });
-  const [priorityOrder, setPriorityOrder] = useState<ScoreCategoryKey[]>([
-    "budget",
-    "commute",
-    "lease",
-    "bedrooms",
-    "amenities",
-  ]);
+  const [priorityOrder, setPriorityOrder] = useState<ScoreCategoryKey[]>(defaultPriorityOrder);
   const [draggedPriority, setDraggedPriority] = useState<ScoreCategoryKey | null>(null);
   const [dragOverPriority, setDragOverPriority] = useState<ScoreCategoryKey | null>(null);
 
@@ -635,6 +622,10 @@ function App() {
   const visibleListingIds = visiblePageListings.map((listing) => listing.id);
   const visibleStartRank = sortedListings.length === 0 ? 0 : currentPageStart + 1;
   const visibleEndRank = Math.min(currentPageStart + listingsPerPage, sortedListings.length);
+  const decisionContextKey = JSON.stringify({
+    priorityOrder,
+    rankingMode,
+  });
   const stepPages: Array<{ key: StepPageKey; label: string }> = [
     { key: "preferences", label: "Preferences" },
     { key: "ranking", label: "Ranking Rules" },
@@ -644,15 +635,36 @@ function App() {
   const previousPage: PageKey =
     currentStepIndex <= 0 ? "home" : stepPages[currentStepIndex - 1].key;
   const tasteProfile = inferTasteProfile({
-    preferences: userPreferences,
     priorityOrder,
     rankingMode,
     chartMetric: effectiveChartMetric,
     sortedListings,
     interactions,
   });
-  const viewedListingIds = new Set(interactions.explanationClicks);
+  const currentListingIdSet = new Set(sortedListings.map((listing) => listing.id));
+  const openExplanationIds = Object.keys(explanations)
+    .map((listingId) => Number(listingId))
+    .filter((listingId) => currentListingIdSet.has(listingId));
+  const viewedListingIds = new Set([
+    ...interactions.explanationClicks.filter((listingId) => currentListingIdSet.has(listingId)),
+    ...openExplanationIds,
+  ]);
   const isTasteProfileReady = activePage === "results" && viewedListingIds.size >= 3;
+
+  const resetHousingStyleProgress = () => {
+    setExplanations({});
+    setLoadingIds([]);
+    setShowTasteProfile(false);
+    setDismissedTastePrompt(false);
+    setShowProfileUpdatedPrompt(false);
+    setLastProfileTitle("");
+    setInteractions((current) => ({
+      ...current,
+      explanationClicks: [],
+      chartMetricChanges: 0,
+      listingPageChanges: 0,
+    }));
+  };
 
   const movePriority = (targetCategory: ScoreCategoryKey) => {
     if (!draggedPriority || draggedPriority === targetCategory) {
@@ -691,6 +703,10 @@ function App() {
   ]);
 
   useEffect(() => {
+    resetHousingStyleProgress();
+  }, [decisionContextKey]);
+
+  useEffect(() => {
     if (currentPage > totalPages - 1) {
       setCurrentPage(totalPages - 1);
     }
@@ -707,6 +723,8 @@ function App() {
 
   useEffect(() => {
     if (!isTasteProfileReady) {
+      setLastProfileTitle("");
+      setShowProfileUpdatedPrompt(false);
       return;
     }
 
@@ -723,7 +741,7 @@ function App() {
   }, [isTasteProfileReady, lastProfileTitle, tasteProfile.title]);
 
   // ai feature
-  const explainMatch = async (listing: any) => {
+  const explainMatch = async (listing: ExplainableListing) => {
     if (explanations[listing.id]) {
       setExplanations((prev) => {
       const updated = { ...prev };
@@ -732,30 +750,41 @@ function App() {
     });
     return;
   }
+    if (loadingIds.includes(listing.id)) {
+      return;
+    }
+
     setInteractions((current) => ({
       ...current,
       explanationClicks: current.explanationClicks.includes(listing.id)
         ? current.explanationClicks
         : [...current.explanationClicks, listing.id],
     }));
-    setLoadingId(listing.id);
-    const explanation = await getMatchExplanation(
-      {
-        maxPrice,
-        maxCommuteTime,
-        leaseTerm,
-        minBedrooms,
-        furnishedOnly,
-        laundryOnly,
-        parkingOnly
-      },
-      listing,
-      sortedListings
+    setLoadingIds((current) =>
+      current.includes(listing.id) ? current : [...current, listing.id]
     );
-    setExplanations(() => ({
-      [listing.id]: explanation,
-    }));
-    setLoadingId(null);
+
+    try {
+      const explanation = await getMatchExplanation(
+        {
+          maxPrice,
+          maxCommuteTime,
+          leaseTerm,
+          minBedrooms,
+          furnishedOnly,
+          laundryOnly,
+          parkingOnly
+        },
+        listing,
+        sortedListings
+      );
+      setExplanations((prev) => ({
+        ...prev,
+        [listing.id]: explanation,
+      }));
+    } finally {
+      setLoadingIds((current) => current.filter((listingId) => listingId !== listing.id));
+    }
   }
   if (loading) return <p>Loading listings...</p>;
   if (error) return <p>{error}</p>;
@@ -913,6 +942,7 @@ function App() {
               setFurnishedOnly(false);
               setLaundryOnly(false);
               setParkingOnly(false);
+              setCurrentPage(0);
               setActivePage("ranking");
             }}
             type="button"
@@ -1000,6 +1030,8 @@ function App() {
             <button
               className="secondary-button"
               onClick={() => {
+                resetHousingStyleProgress();
+                setCurrentPage(0);
                 setRankingMode("skipped");
                 setChartMetric("price");
                 setActivePage("results");
@@ -1010,6 +1042,8 @@ function App() {
             </button>
             <button
               onClick={() => {
+                resetHousingStyleProgress();
+                setCurrentPage(0);
                 setRankingMode((current) => (current === "skipped" ? "default" : current));
                 setActivePage("results");
               }}
@@ -1068,13 +1102,23 @@ function App() {
           listings currently shown below are highlighted.
           {rankingMode === "skipped" && " Since ranking was skipped, the order is random for browsing."}
         </p>
-        <ListingMetricChart
-          listings={sortedListings}
-          highlightedListingIds={visibleListingIds}
-          metric={effectiveChartMetric}
-          chartType={chartType}
-          xAxisLabel={rankingMode === "skipped" ? "Browsing order" : "Ranked listings"}
-        />
+        {sortedListings.length > 0 ? (
+          <ListingMetricChart
+            listings={sortedListings}
+            highlightedListingIds={visibleListingIds}
+            metric={effectiveChartMetric}
+            chartType={chartType}
+            xAxisLabel={rankingMode === "skipped" ? "Browsing order" : "Ranked listings"}
+          />
+        ) : (
+          <div className="empty-state">
+            <p className="eyebrow">No matches yet</p>
+            <p>
+              No listings match those filters right now. Go back and loosen one
+              preference to bring more options back.
+            </p>
+          </div>
+        )}
       </section>
 
       <section className="results-section">
@@ -1085,57 +1129,70 @@ function App() {
           </div>
         </div>
 
-        <div className="listing-pager" aria-label="Listing navigation">
-          <button
-            className="arrow-button"
-            type="button"
-            onClick={() => {
-              setCurrentPage((page) => Math.max(0, page - 1));
-              setInteractions((current) => ({
-                ...current,
-                listingPageChanges: current.listingPageChanges + 1,
-              }));
-            }}
-            disabled={currentPage === 0}
-            aria-label="Previous listings"
-          >
-            <span aria-hidden="true">&larr;</span>
-          </button>
-          <p>
-            Showing {rankingMode === "skipped" ? "listings" : "ranks"}{" "}
-            <strong>{visibleStartRank}-{visibleEndRank}</strong> of{" "}
-            <strong>{sortedListings.length}</strong>
-          </p>
-          <button
-            className="arrow-button"
-            type="button"
-            onClick={() => {
-              setCurrentPage((page) => Math.min(totalPages - 1, page + 1));
-              setInteractions((current) => ({
-                ...current,
-                listingPageChanges: current.listingPageChanges + 1,
-              }));
-            }}
-            disabled={currentPage >= totalPages - 1}
-            aria-label="Next listings"
-          >
-            <span aria-hidden="true">&rarr;</span>
-          </button>
-        </div>
+        {sortedListings.length > 0 ? (
+          <>
+            <div className="listing-pager" aria-label="Listing navigation">
+              <button
+                className="arrow-button"
+                type="button"
+                onClick={() => {
+                  setCurrentPage((page) => Math.max(0, page - 1));
+                  setInteractions((current) => ({
+                    ...current,
+                    listingPageChanges: current.listingPageChanges + 1,
+                  }));
+                }}
+                disabled={currentPage === 0}
+                aria-label="Previous listings"
+              >
+                <span aria-hidden="true">&larr;</span>
+              </button>
+              <p>
+                Showing {rankingMode === "skipped" ? "listings" : "ranks"}{" "}
+                <strong>{visibleStartRank}-{visibleEndRank}</strong> of{" "}
+                <strong>{sortedListings.length}</strong>
+              </p>
+              <button
+                className="arrow-button"
+                type="button"
+                onClick={() => {
+                  setCurrentPage((page) => Math.min(totalPages - 1, page + 1));
+                  setInteractions((current) => ({
+                    ...current,
+                    listingPageChanges: current.listingPageChanges + 1,
+                  }));
+                }}
+                disabled={currentPage >= totalPages - 1}
+                aria-label="Next listings"
+              >
+                <span aria-hidden="true">&rarr;</span>
+              </button>
+            </div>
 
-        <div className="listing-list">
-          {visiblePageListings.map((listing, index) => (
-            <ListingCard 
-              key={listing.id} 
-              listing={listing}
-              rank={currentPageStart + index + 1} 
-              onExplainMatch={explainMatch}
-              explanation={explanations[listing.id] || ""}
-              isLoading={loadingId === listing.id}
-              hideScore={rankingMode === "skipped"}
-              rankLabel={rankingMode === "skipped" ? "Listing" : "Rank"}/>
-          ))}
-        </div>
+            <div className="listing-list">
+              {visiblePageListings.map((listing, index) => (
+                <ListingCard
+                  key={listing.id}
+                  listing={listing}
+                  rank={currentPageStart + index + 1}
+                  onExplainMatch={explainMatch}
+                  explanation={explanations[listing.id] || ""}
+                  isLoading={loadingIds.includes(listing.id)}
+                  hideScore={rankingMode === "skipped"}
+                  rankLabel={rankingMode === "skipped" ? "Listing" : "Rank"}
+                />
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="empty-state">
+            <p className="eyebrow">Nothing to compare yet</p>
+            <p>
+              The filters are too tight for the sample listings. Head back and
+              try a higher budget, a longer commute, or fewer must-haves.
+            </p>
+          </div>
+        )}
       </section>
       </div>
       </section>

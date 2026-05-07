@@ -359,7 +359,10 @@ h3 {
 }
 
 .results-section {
+  margin-inline: auto;
   margin-top: 2.3rem;
+  max-width: 1120px;
+  width: 100%;
 }
 
 .panel-copy {
@@ -502,6 +505,22 @@ h3 {
   padding-bottom: 0.2rem;
 }
 
+.empty-state {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(66, 133, 244, 0.22);
+  border-radius: 8px;
+  margin-inline: auto;
+  max-width: 760px;
+  padding: 1.25rem;
+  width: 100%;
+}
+
+.empty-state p:not(.eyebrow) {
+  color: var(--muted);
+  font-weight: 750;
+  margin: 0.4rem 0 0;
+}
+
 .chart-frame svg {
   background: #ffffff;
   border: 1px solid var(--border);
@@ -616,7 +635,9 @@ h3 {
   display: flex;
   gap: 1rem;
   justify-content: space-between;
+  margin-inline: auto;
   margin-bottom: 1rem;
+  max-width: 1120px;
 }
 
 .results-header > p {
@@ -633,8 +654,11 @@ h3 {
   display: flex;
   gap: 0.85rem;
   justify-content: center;
+  margin-inline: auto;
   margin-bottom: 1rem;
+  max-width: 1120px;
   padding: 0.8rem;
+  width: 100%;
 }
 
 .listing-pager p {
@@ -664,6 +688,9 @@ h3 {
 .listing-list {
   display: grid;
   gap: 1.15rem;
+  justify-items: center;
+  margin-inline: auto;
+  width: 100%;
 }
 
 .listing-row {

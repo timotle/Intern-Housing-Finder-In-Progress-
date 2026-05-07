@@ -1,3 +1,19 @@
+import type { Listing } from "../types";
+
+type ListingCardListing = Listing & {
+    matchScore?: number;
+};
+
+type ListingCardProps = {
+    listing: ListingCardListing;
+    rank: number;
+    onExplainMatch: (listing: ListingCardListing) => void | Promise<void>;
+    explanation: string;
+    isLoading: boolean;
+    hideScore: boolean;
+    rankLabel?: string;
+};
+
 function ListingCard({
     listing,
     rank,
@@ -6,7 +22,7 @@ function ListingCard({
     isLoading,
     hideScore,
     rankLabel = "Rank",
-}: any) {
+}: ListingCardProps) {
     const isExplanationOpen = Boolean(explanation) || isLoading;
 
     return(

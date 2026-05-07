@@ -7,6 +7,32 @@ function getOpenAIKey() {
     .trim();
 }
 
+function getRankedContext(selectedListing, visibleListings = []) {
+  const rankedListings = [...visibleListings].sort((a, b) => {
+    const scoreDifference = (Number(b.matchScore) || 0) - (Number(a.matchScore) || 0);
+    if (scoreDifference !== 0) {
+      return scoreDifference;
+    }
+
+    const priceDifference = (Number(a.price) || 0) - (Number(b.price) || 0);
+    if (priceDifference !== 0) {
+      return priceDifference;
+    }
+
+    return (Number(a.commuteTime) || 0) - (Number(b.commuteTime) || 0);
+  });
+  const selectedIndex = rankedListings.findIndex((listing) => listing.id === selectedListing?.id);
+  const safeIndex = selectedIndex >= 0 ? selectedIndex : 0;
+
+  return {
+    aboveListings: rankedListings.slice(Math.max(0, safeIndex - 2), safeIndex),
+    belowListings: rankedListings.slice(safeIndex + 1, safeIndex + 3),
+    rankedListings,
+    selectedRank: rankedListings.length === 0 ? 0 : safeIndex + 1,
+    totalListings: rankedListings.length,
+  };
+}
+
 async function handleExplainMatch(body) {
   const openAIKey = getOpenAIKey();
 
@@ -18,20 +44,21 @@ async function handleExplainMatch(body) {
   }
 
   const { userPreferences, selectedListing, visibleListings } = body;
+  const { aboveListings, belowListings, selectedRank, totalListings } = getRankedContext(
+    selectedListing,
+    visibleListings
+  );
 
   const prompt = `
 You are a student-friendly readable smart housing recommendation assistant.
 
-The user clicked on one listing, but your job is to evaluate ALL visible listings objectively before discussing the selected listing.
+The user clicked on one listing. The app already ranked the visible listings using structured match scores before sending this to you.
 
 IMPORTANT RULES:
 - Do NOT assume the selected listing is the best option.
-- First, internally rank ALL visible listings from best to worst (do NOT print the full list).
-- Use the provided matchScore as the PRIMARY ranking signal.
-- If two listings have the same matchScore, break ties by:
-  1) lower price
-  2) shorter commute time
-- Only after ranking should you analyze the selected listing.
+- Use the exact selected listing rank shown below.
+- Do NOT invent a different total number of listings.
+- Only compare against the above and below listings provided.
 
 Your response must follow this exact structure:
 
@@ -58,6 +85,9 @@ STRICT REQUIREMENTS:
 - Keep the tone concise and analytical. Remember the audience is interns and students.
 - Do NOT print the full ranking of all listings.
 - Only reference up to 2 listings above and 2 below the selected listing.
+- Use this exact rank: ${selectedRank} out of ${totalListings}.
+- If a provided Above or Below list is empty, write "None" for that line.
+- Never put a lower-ranked listing in the Above section.
 
 User Preferences:
 ${JSON.stringify(userPreferences)}
@@ -65,8 +95,11 @@ ${JSON.stringify(userPreferences)}
 Selected Listing:
 ${JSON.stringify(selectedListing)}
 
-All Visible Listings:
-${JSON.stringify(visibleListings)}
+Listings Above Selected Listing:
+${JSON.stringify(aboveListings)}
+
+Listings Below Selected Listing:
+${JSON.stringify(belowListings)}
 `;
 
   const openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
