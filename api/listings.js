@@ -241,6 +241,10 @@ const listings = [
   },
 ];
 
+export default function handler(request, response) {
+  response.status(200).json(listings);
+}
+
 export function GET() {
   return Response.json(listings);
 }

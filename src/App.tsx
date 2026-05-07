@@ -64,15 +64,18 @@ async function getMatchExplanation(
       }),
     });
 
+    const data = await response.json();
+
     if (!response.ok) {
-      throw new Error("Sorry explanation could not be fetched");
+      throw new Error(data.error || "Sorry explanation could not be fetched");
     }
 
-    const data = await response.json();
     return data.explanation;
   } catch (error) {
     console.error("The explanation erorr:", error);
-    return "Sorry the explanation can't be generated right now.";
+    return error instanceof Error
+      ? `Sorry, the AI explanation could not be generated right now. ${error.message}`
+      : "Sorry, the AI explanation could not be generated right now.";
   }
 }
 
@@ -749,8 +752,7 @@ function App() {
       listing,
       sortedListings
     );
-    setExplanations((prev) => ({
-      ...prev,
+    setExplanations(() => ({
       [listing.id]: explanation,
     }));
     setLoadingId(null);

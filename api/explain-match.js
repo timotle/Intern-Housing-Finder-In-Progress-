@@ -1,15 +1,14 @@
-export async function POST(request) {
-  try {
-    if (!process.env.OPENAI_API_KEY) {
-      return Response.json(
-        { error: "OpenAI API key is not set up yet." },
-        { status: 500 }
-      );
-    }
+async function handleExplainMatch(body) {
+  if (!process.env.OPENAI_API_KEY) {
+    return {
+      status: 500,
+      body: { error: "OpenAI API key is not set up yet." },
+    };
+  }
 
-    const { userPreferences, selectedListing, visibleListings } = await request.json();
+  const { userPreferences, selectedListing, visibleListings } = body;
 
-    const prompt = `
+  const prompt = `
 You are a student-friendly readable smart housing recommendation assistant.
 
 The user clicked on one listing, but your job is to evaluate ALL visible listings objectively before discussing the selected listing.
@@ -59,30 +58,55 @@ All Visible Listings:
 ${JSON.stringify(visibleListings)}
 `;
 
-    const openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4.1-mini",
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
+  const openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "gpt-4.1-mini",
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
 
-    const data = await openaiResponse.json();
+  const data = await openaiResponse.json();
 
-    if (!openaiResponse.ok) {
-      return Response.json(
-        { error: data.error?.message || "OpenAI request failed." },
-        { status: openaiResponse.status }
-      );
-    }
+  if (!openaiResponse.ok) {
+    return {
+      status: openaiResponse.status,
+      body: { error: data.error?.message || "OpenAI request failed." },
+    };
+  }
 
-    return Response.json({
+  return {
+    status: 200,
+    body: {
       explanation: data.choices?.[0]?.message?.content || "No explanation returned.",
+    },
+  };
+}
+
+export default async function handler(request, response) {
+  if (request.method !== "POST") {
+    response.setHeader("Allow", "POST");
+    return response.status(405).json({ error: "Method not allowed." });
+  }
+
+  try {
+    const result = await handleExplainMatch(request.body ?? {});
+    return response.status(result.status).json(result.body);
+  } catch (error) {
+    return response.status(500).json({
+      error: error.message || "Unknown server error.",
     });
+  }
+}
+
+export async function POST(request) {
+  try {
+    const result = await handleExplainMatch(await request.json());
+    return Response.json(result.body, { status: result.status });
   } catch (error) {
     return Response.json(
       { error: error.message || "Unknown server error." },

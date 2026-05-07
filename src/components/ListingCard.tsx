@@ -7,8 +7,20 @@ function ListingCard({
     hideScore,
     rankLabel = "Rank",
 }: any) {
+    const isExplanationOpen = Boolean(explanation) || isLoading;
+
     return(
-        <article className="listing-row">
+        <article className={`listing-row ${isExplanationOpen ? "has-explanation" : ""}`}>
+            {isExplanationOpen && (
+                <div className="explanation-card">
+                    <p className="eyebrow">AI explanation</p>
+                    {isLoading ? (
+                        <p className="loading-note">Generating explanation...</p>
+                    ) : (
+                        <pre>{explanation}</pre>
+                    )}
+                </div>
+            )}
             <div className="listing-card">
                 <div className="listing-topline">
                     <span>{rankLabel} #{rank}</span>
@@ -46,17 +58,14 @@ function ListingCard({
                     {listing.laundry && <span>Laundry</span>}
                     {listing.parking && <span>Parking</span>}
                 </div>
-                <button onClick={() => onExplainMatch(listing)}>
-                    {explanation ? "Close explanation" : "Explain tradeoffs"}
+                <button disabled={isLoading} onClick={() => onExplainMatch(listing)}>
+                    {isLoading
+                        ? "Generating..."
+                        : isExplanationOpen
+                          ? "Close explanation"
+                          : "Explain tradeoffs"}
                 </button>
-                {isLoading && <p className="loading-note">Generating explanation...</p>}
             </div>
-            {explanation && (
-                <div className="explanation-card">
-                    <p className="eyebrow">LLM explanation</p>
-                    <pre>{explanation}</pre>
-                </div>
-            )}
         </article>
     );
 } 

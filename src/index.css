@@ -663,13 +663,38 @@ h3 {
 
 .listing-list {
   display: grid;
-  gap: 1rem;
+  gap: 1.15rem;
 }
 
 .listing-row {
+  align-items: stretch;
   display: grid;
+  gap: 0;
+  grid-template-columns: minmax(0, 720px);
+  justify-content: center;
+  margin-inline: auto;
+  max-width: 760px;
+  transition:
+    gap 260ms ease,
+    max-width 260ms ease,
+    grid-template-columns 260ms ease;
+  width: 100%;
+}
+
+.listing-row.has-explanation {
   gap: 1rem;
-  grid-template-columns: minmax(0, 0.9fr) minmax(320px, 1.1fr);
+  grid-template-columns: minmax(300px, 0.95fr) minmax(340px, 0.9fr);
+  max-width: 1120px;
+}
+
+.listing-row.has-explanation .listing-card {
+  animation: listingSlideRight 280ms ease both;
+  order: 2;
+}
+
+.listing-row.has-explanation .explanation-card {
+  animation: explanationSlideIn 280ms ease both;
+  order: 1;
 }
 
 .listing-card,
@@ -747,6 +772,7 @@ h3 {
 
 .explanation-card {
   background: #fffdf8;
+  min-height: 100%;
 }
 
 .explanation-card pre {
@@ -755,6 +781,28 @@ h3 {
   margin: 0.6rem 0 0;
   overflow-x: auto;
   white-space: pre-wrap;
+}
+
+@keyframes explanationSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes listingSlideRight {
+  from {
+    transform: translateX(-12px);
+  }
+
+  to {
+    transform: translateX(0);
+  }
 }
 
 .taste-profile-toast {
@@ -867,9 +915,22 @@ h3 {
 
 @media (max-width: 820px) {
   .filter-grid,
-  .listing-row,
   .home-grid {
     grid-template-columns: 1fr;
+  }
+
+  .listing-row,
+  .listing-row.has-explanation {
+    grid-template-columns: 1fr;
+    max-width: 760px;
+  }
+
+  .listing-row.has-explanation .listing-card {
+    order: 1;
+  }
+
+  .listing-row.has-explanation .explanation-card {
+    order: 2;
   }
 
   .results-header,
