@@ -1,12 +1,18 @@
 import { useEffect, useState } from "react";
 import type { Listing } from "./types";
 import ListingCard from "./components/ListingCard";
+import {
+  predictTasteProfile,
+  type TasteProfileLabel,
+} from "./data/tasteProfileModel";
 
 type UserPreferences = {
   maxPrice: string;
   maxCommuteTime: string;
   leaseTerm: string;
   minBedrooms: string;
+  minSquareFeet: string;
+  minBaths: string;
   furnishedOnly: boolean;
   laundryOnly: boolean;
   parkingOnly: boolean;
@@ -28,8 +34,22 @@ type ScoredListing = ExplainableListing & {
   scoreBreakdown: ScoreBreakdownItem[];
 };
 
-type ScoreCategoryKey = "budget" | "commute" | "lease" | "bedrooms" | "amenities";
-type ChartMetric = "matchScore" | "price" | "commuteTime" | "leaseTerm" | "numBedroom";
+type ScoreCategoryKey =
+  | "budget"
+  | "commute"
+  | "lease"
+  | "bedrooms"
+  | "squareFeet"
+  | "baths"
+  | "amenities";
+type ChartMetric =
+  | "matchScore"
+  | "price"
+  | "commuteTime"
+  | "leaseTerm"
+  | "numBedroom"
+  | "squareFootage"
+  | "bathrooms";
 type ChartType = "bar" | "line";
 type PageKey = "home" | "preferences" | "ranking" | "results";
 type StepPageKey = Exclude<PageKey, "home">;
@@ -118,6 +138,18 @@ const scoreCategories: Record<
     description: "More bedrooms score higher.",
     maxPoints: 15,
   },
+  squareFeet: {
+    label: "Square feet",
+    shortLabel: "More space",
+    description: "Bigger layouts score higher.",
+    maxPoints: 15,
+  },
+  baths: {
+    label: "Baths",
+    shortLabel: "More baths",
+    description: "More bathrooms score higher.",
+    maxPoints: 12,
+  },
   amenities: {
     label: "Amenities",
     shortLabel: "Amenities",
@@ -126,10 +158,117 @@ const scoreCategories: Record<
   },
 };
 
-const priorityMultipliers = [1.4, 1.2, 1, 0.85, 0.7];
+const priorityMultipliers = [1.45, 1.3, 1.15, 1, 0.9, 0.8, 0.7];
 
-function getRange(listings: Listing[], key: "price" | "commuteTime" | "leaseTerm" | "numBedroom") {
-  const values = listings.map((listing) => listing[key]);
+const profileTitles: Record<TasteProfileLabel, string> = {
+  budget_commuter: "Lime scooter warrior",
+  budget_first: "King Rent",
+  convenience: "Got no Lime scooter?",
+  lease_planner: "Lease locked in",
+  comfort: "Mr. Snorlax",
+  balanced: "Balanced bestie",
+  space_hunter: "Viltrumite",
+  bathroom_planner: "Royal Flush",
+};
+
+const profileScoreWeights: Record<TasteProfileLabel, Record<ScoreCategoryKey, number>> = {
+  budget_commuter: {
+    budget: 0.28,
+    commute: 0.3,
+    lease: 0.1,
+    bedrooms: 0.08,
+    squareFeet: 0.08,
+    baths: 0.06,
+    amenities: 0.1,
+  },
+  budget_first: {
+    budget: 0.45,
+    commute: 0.16,
+    lease: 0.09,
+    bedrooms: 0.07,
+    squareFeet: 0.07,
+    baths: 0.06,
+    amenities: 0.1,
+  },
+  convenience: {
+    budget: 0.14,
+    commute: 0.42,
+    lease: 0.08,
+    bedrooms: 0.07,
+    squareFeet: 0.08,
+    baths: 0.07,
+    amenities: 0.14,
+  },
+  lease_planner: {
+    budget: 0.14,
+    commute: 0.12,
+    lease: 0.4,
+    bedrooms: 0.09,
+    squareFeet: 0.08,
+    baths: 0.07,
+    amenities: 0.1,
+  },
+  comfort: {
+    budget: 0.1,
+    commute: 0.12,
+    lease: 0.08,
+    bedrooms: 0.2,
+    squareFeet: 0.18,
+    baths: 0.14,
+    amenities: 0.18,
+  },
+  balanced: {
+    budget: 0.18,
+    commute: 0.17,
+    lease: 0.14,
+    bedrooms: 0.13,
+    squareFeet: 0.13,
+    baths: 0.11,
+    amenities: 0.14,
+  },
+  space_hunter: {
+    budget: 0.09,
+    commute: 0.1,
+    lease: 0.08,
+    bedrooms: 0.16,
+    squareFeet: 0.4,
+    baths: 0.09,
+    amenities: 0.08,
+  },
+  bathroom_planner: {
+    budget: 0.1,
+    commute: 0.1,
+    lease: 0.08,
+    bedrooms: 0.14,
+    squareFeet: 0.12,
+    baths: 0.38,
+    amenities: 0.08,
+  },
+};
+
+const profilePickReasons: Record<TasteProfileLabel, string> = {
+  budget_commuter: "it keeps rent and commute working together instead of only chasing one number",
+  budget_first: "it gives you a strong cheaper-rent option to compare next",
+  convenience: "it keeps the commute easier while still staying realistic",
+  lease_planner: "it is a clean lease fit to compare before deciding",
+  comfort: "it gives you more space and comfort signals to check next",
+  balanced: "it gives you a steady option without leaning too hard in one direction",
+  space_hunter: "it gives you more room to breathe without ignoring the rest of the tradeoffs",
+  bathroom_planner: "it gives you a stronger bathroom setup to compare next",
+};
+
+function getListingNumber(
+  listing: Listing,
+  key: "price" | "commuteTime" | "leaseTerm" | "numBedroom" | "squareFootage" | "bathrooms"
+) {
+  return Number(listing[key]) || 0;
+}
+
+function getRange(
+  listings: Listing[],
+  key: "price" | "commuteTime" | "leaseTerm" | "numBedroom" | "squareFootage" | "bathrooms"
+) {
+  const values = listings.map((listing) => getListingNumber(listing, key));
   return {
     min: Math.min(...values),
     max: Math.max(...values),
@@ -159,6 +298,93 @@ function getMedianValue(values: number[]) {
   return sortedValues[Math.floor(sortedValues.length / 2)];
 }
 
+function getPriorityStrength(
+  category: ScoreCategoryKey,
+  priorityOrder: ScoreCategoryKey[],
+  rankingMode: RankingMode
+) {
+  if (rankingMode === "skipped") {
+    return 0;
+  }
+
+  return (priorityOrder.length - priorityOrder.indexOf(category)) / priorityOrder.length;
+}
+
+function getAmenityStrength(listing: Listing) {
+  return [listing.furnished, listing.laundry, listing.parking].filter(Boolean).length / 3;
+}
+
+function getListingSignals(listing: Listing, comparisonListings: Listing[]) {
+  return {
+    budget: scoreLowerIsBetter(
+      listing.price,
+      getRange(comparisonListings, "price").min,
+      getRange(comparisonListings, "price").max,
+      1
+    ),
+    commute: scoreLowerIsBetter(
+      listing.commuteTime,
+      getRange(comparisonListings, "commuteTime").min,
+      getRange(comparisonListings, "commuteTime").max,
+      1
+    ),
+    lease: scoreLowerIsBetter(
+      listing.leaseTerm,
+      getRange(comparisonListings, "leaseTerm").min,
+      getRange(comparisonListings, "leaseTerm").max,
+      1
+    ),
+    bedrooms: scoreHigherIsBetter(
+      listing.numBedroom,
+      getRange(comparisonListings, "numBedroom").min,
+      getRange(comparisonListings, "numBedroom").max,
+      1
+    ),
+    squareFeet: scoreHigherIsBetter(
+      getListingNumber(listing, "squareFootage"),
+      getRange(comparisonListings, "squareFootage").min,
+      getRange(comparisonListings, "squareFootage").max,
+      1
+    ),
+    baths: scoreHigherIsBetter(
+      getListingNumber(listing, "bathrooms"),
+      getRange(comparisonListings, "bathrooms").min,
+      getRange(comparisonListings, "bathrooms").max,
+      1
+    ),
+    amenities: getAmenityStrength(listing),
+  };
+}
+
+function getSmartPick({
+  modelProfile,
+  sortedListings,
+  viewedListingIds,
+}: {
+  modelProfile: TasteProfileLabel;
+  sortedListings: ScoredListing[];
+  viewedListingIds: number[];
+}) {
+  const candidateListings =
+    sortedListings.filter((listing) => !viewedListingIds.includes(listing.id));
+  const pickPool = candidateListings.length > 0 ? candidateListings : sortedListings;
+
+  if (pickPool.length === 0) {
+    return null;
+  }
+
+  const weights = profileScoreWeights[modelProfile];
+  return pickPool
+    .map((listing) => {
+      const signals = getListingSignals(listing, sortedListings);
+      const profileScore = (Object.entries(weights) as Array<[ScoreCategoryKey, number]>)
+        .reduce((sum, [category, weight]) => sum + signals[category] * weight, 0);
+
+      return { listing, profileScore };
+    })
+    .sort((a, b) => b.profileScore - a.profileScore)[0].listing;
+}
+
 function calculateScoreBreakdown(
   listing: Listing,
   preferences: UserPreferences,
@@ -169,6 +395,8 @@ function calculateScoreBreakdown(
   const commuteRange = getRange(comparisonListings, "commuteTime");
   const leaseRange = getRange(comparisonListings, "leaseTerm");
   const bedroomRange = getRange(comparisonListings, "numBedroom");
+  const squareFeetRange = getRange(comparisonListings, "squareFootage");
+  const bathRange = getRange(comparisonListings, "bathrooms");
 
   return priorityOrder.map((category, index) => {
     const multiplier = priorityMultipliers[index] ?? 1;
@@ -222,6 +450,47 @@ function calculateScoreBreakdown(
       explanation = `${listing.numBedroom} bedroom(s) compared with the current filtered listings`;
     }
 
+    if (category === "squareFeet") {
+      const squareFootage = getListingNumber(listing, "squareFootage");
+      if (preferences.minSquareFeet !== "") {
+        basePoints =
+          squareFootage >= Number(preferences.minSquareFeet)
+            ? categoryInfo.maxPoints
+            : Math.max(
+                0,
+                (squareFootage / Number(preferences.minSquareFeet)) * categoryInfo.maxPoints
+              );
+        explanation = `${squareFootage} square feet compared with your ${preferences.minSquareFeet} square foot target`;
+      } else {
+        basePoints = scoreHigherIsBetter(
+          squareFootage,
+          squareFeetRange.min,
+          squareFeetRange.max,
+          categoryInfo.maxPoints
+        );
+        explanation = `${squareFootage} square feet compared with the current filtered listings`;
+      }
+    }
+
+    if (category === "baths") {
+      const bathrooms = getListingNumber(listing, "bathrooms");
+      if (preferences.minBaths !== "") {
+        basePoints =
+          bathrooms >= Number(preferences.minBaths)
+            ? categoryInfo.maxPoints
+            : Math.max(0, (bathrooms / Number(preferences.minBaths)) * categoryInfo.maxPoints);
+        explanation = `${bathrooms} bathroom(s) compared with your ${preferences.minBaths} bathroom target`;
+      } else {
+        basePoints = scoreHigherIsBetter(
+          bathrooms,
+          bathRange.min,
+          bathRange.max,
+          categoryInfo.maxPoints
+        );
+        explanation = `${bathrooms} bathroom(s) compared with the current filtered listings`;
+      }
+    }
+
     if (category === "amenities") {
       const amenityCount = [listing.furnished, listing.laundry, listing.parking].filter(Boolean).length;
       basePoints = (amenityCount / 3) * categoryInfo.maxPoints;
@@ -242,6 +511,8 @@ const chartMetrics: Record<ChartMetric, { label: string; suffix: string }> = {
   commuteTime: { label: "Commute time", suffix: " min" },
   leaseTerm: { label: "Lease term", suffix: " mo" },
   numBedroom: { label: "Bedrooms", suffix: "" },
+  squareFootage: { label: "Square feet", suffix: " sq ft" },
+  bathrooms: { label: "Baths", suffix: "" },
 };
 
 function inferTasteProfile({
@@ -262,12 +533,14 @@ function inferTasteProfile({
     commute: 0,
     lease: 0,
     bedrooms: 0,
+    squareFeet: 0,
+    baths: 0,
     amenities: 0,
   };
 
   if (rankingMode !== "skipped") {
     priorityOrder.forEach((category, index) => {
-      categoryScores[category] += 5 - index;
+      categoryScores[category] += priorityOrder.length - index;
     });
   }
 
@@ -275,61 +548,104 @@ function inferTasteProfile({
   if (chartMetric === "commuteTime") categoryScores.commute += 0.75;
   if (chartMetric === "leaseTerm") categoryScores.lease += 0.75;
   if (chartMetric === "numBedroom") categoryScores.bedrooms += 0.75;
+  if (chartMetric === "squareFootage") categoryScores.squareFeet += 0.75;
+  if (chartMetric === "bathrooms") categoryScores.baths += 0.75;
 
   const clickedListings = sortedListings.filter((listing) =>
     interactions.explanationClicks.includes(listing.id)
   );
   const medianPrice = getMedianValue(sortedListings.map((listing) => listing.price));
   const medianCommute = getMedianValue(sortedListings.map((listing) => listing.commuteTime));
+  const medianSquareFeet = getMedianValue(
+    sortedListings.map((listing) => getListingNumber(listing, "squareFootage"))
+  );
+  const medianBaths = getMedianValue(
+    sortedListings.map((listing) => getListingNumber(listing, "bathrooms"))
+  );
+  const clickedCount = Math.max(clickedListings.length, 1);
+  const clickedAmenityStrength =
+    clickedListings.reduce((sum, listing) => sum + getAmenityStrength(listing), 0) / clickedCount;
+  const clickedBudgetStrength =
+    clickedListings.filter((listing) => medianPrice > 0 && listing.price <= medianPrice).length /
+    clickedCount;
+  const clickedCommuteStrength =
+    clickedListings.filter((listing) => medianCommute > 0 && listing.commuteTime <= medianCommute)
+      .length / clickedCount;
+  const clickedLeaseStrength =
+    clickedListings.filter((listing) => listing.leaseTerm <= 12).length / clickedCount;
+  const clickedBedroomStrength =
+    clickedListings.filter((listing) => listing.numBedroom >= 2).length / clickedCount;
+  const clickedSquareFeetStrength =
+    clickedListings.filter(
+      (listing) =>
+        medianSquareFeet > 0 && getListingNumber(listing, "squareFootage") >= medianSquareFeet
+    ).length / clickedCount;
+  const clickedBathStrength =
+    clickedListings.filter(
+      (listing) => medianBaths > 0 && getListingNumber(listing, "bathrooms") >= medianBaths
+    ).length / clickedCount;
 
   clickedListings.forEach((listing) => {
     if (medianPrice > 0 && listing.price <= medianPrice) categoryScores.budget += 0.7;
     if (medianCommute > 0 && listing.commuteTime <= medianCommute) categoryScores.commute += 0.7;
     if (listing.leaseTerm <= 12) categoryScores.lease += 0.45;
     if (listing.numBedroom >= 2) categoryScores.bedrooms += 0.55;
+    if (
+      medianSquareFeet > 0 &&
+      getListingNumber(listing, "squareFootage") >= medianSquareFeet
+    ) {
+      categoryScores.squareFeet += 0.6;
+    }
+    if (medianBaths > 0 && getListingNumber(listing, "bathrooms") >= medianBaths) {
+      categoryScores.baths += 0.6;
+    }
     if ([listing.furnished, listing.laundry, listing.parking].filter(Boolean).length >= 2) {
       categoryScores.amenities += 0.55;
     }
   });
 
+  const modelProfile = predictTasteProfile({
+    budgetPriority: getPriorityStrength("budget", priorityOrder, rankingMode),
+    commutePriority: getPriorityStrength("commute", priorityOrder, rankingMode),
+    leasePriority: getPriorityStrength("lease", priorityOrder, rankingMode),
+    bedroomsPriority: getPriorityStrength("bedrooms", priorityOrder, rankingMode),
+    squareFeetPriority: getPriorityStrength("squareFeet", priorityOrder, rankingMode),
+    bathsPriority: getPriorityStrength("baths", priorityOrder, rankingMode),
+    amenitiesPriority: getPriorityStrength("amenities", priorityOrder, rankingMode),
+    strictBudget: clickedBudgetStrength,
+    strictCommute: clickedCommuteStrength,
+    leaseSet: clickedLeaseStrength,
+    bedroomNeed: clickedBedroomStrength,
+    squareFeetNeed: clickedSquareFeetStrength,
+    bathNeed: clickedBathStrength,
+    amenityNeed: clickedAmenityStrength,
+    priceChart: chartMetric === "price" ? 1 : 0,
+    commuteChart: chartMetric === "commuteTime" ? 1 : 0,
+    leaseChart: chartMetric === "leaseTerm" ? 1 : 0,
+    bedroomChart: chartMetric === "numBedroom" ? 1 : 0,
+    squareFeetChart: chartMetric === "squareFootage" ? 1 : 0,
+    bathChart: chartMetric === "bathrooms" ? 1 : 0,
+    explanationActivity: Math.min(interactions.explanationClicks.length / 3, 1),
+    pagingActivity: Math.min(interactions.listingPageChanges / 3, 1),
+  });
+
   const rankedSignals = (Object.entries(categoryScores) as Array<[ScoreCategoryKey, number]>)
     .sort((a, b) => b[1] - a[1]);
-  const [topCategory, topScore] = rankedSignals[0];
+  const [topCategory] = rankedSignals[0];
   const secondCategory = rankedSignals[1][0];
-  const topPriority = rankingMode === "skipped" ? null : priorityOrder[0];
-  const secondPriority = rankingMode === "skipped" ? null : priorityOrder[1];
-  const isBalanced = topScore - rankedSignals[1][1] < 0.75;
-
-  let title = "Balanced bestie";
-  if (topPriority === "budget" && secondPriority === "commute") {
-    title = "Lime scooter warrior";
-  } else if (topPriority === "budget") {
-    title = "King Rent";
-  } else if (topPriority === "commute") {
-    title = "Got no Lime scooter?";
-  } else if (topPriority === "lease") {
-    title = "Lease locked in";
-  } else if (topPriority === "bedrooms" || topPriority === "amenities") {
-    title = "Mr. Snorlax";
-  } else if (!isBalanced && topCategory === "budget" && secondCategory === "commute") {
-    title = "Lime scooter warrior";
-  } else if (!isBalanced && topCategory === "budget") {
-    title = "King Rent";
-  } else if (!isBalanced && topCategory === "commute") {
-    title = "Got no Lime scooter?";
-  } else if (!isBalanced && topCategory === "lease") {
-    title = "Lease locked in";
-  } else if (!isBalanced && (topCategory === "bedrooms" || topCategory === "amenities")) {
-    title = "Mr. Snorlax";
-  }
+  const smartPick = getSmartPick({
+    modelProfile,
+    sortedListings,
+    viewedListingIds: interactions.explanationClicks,
+  });
 
   return {
-    title,
+    title: profileTitles[modelProfile],
     summary: `You seem to care most about ${scoreCategories[topCategory].label.toLowerCase()} while still comparing ${scoreCategories[secondCategory].label.toLowerCase()} closely.`,
     fitTip: `Your best fit will probably balance ${scoreCategories[topCategory].label.toLowerCase()} with ${scoreCategories[secondCategory].label.toLowerCase()}.`,
     smartSuggestion:
-      sortedListings[0] !== undefined
-        ? `Start with ${sortedListings[0].name}, then compare it against the next few listings before deciding.`
+      smartPick !== null
+        ? `Smart pick: ${smartPick.name}. It fits your current housing style because ${profilePickReasons[modelProfile]}.`
         : "Add or loosen filters to get more listings to compare.",
   };
 }
@@ -493,6 +809,8 @@ function App() {
     "commute",
     "lease",
     "bedrooms",
+    "squareFeet",
+    "baths",
     "amenities",
   ];
   const [activePage, setActivePage] = useState<PageKey>("home");
@@ -500,6 +818,8 @@ function App() {
   const [maxCommuteTime, setMaxCommuteTime] = useState("");
   const [leaseTerm, setLeaseTerm] = useState("");
   const [minBedrooms, setMinBedrooms] = useState("");
+  const [minSquareFeet, setMinSquareFeet] = useState("");
+  const [minBaths, setMinBaths] = useState("");
   const [furnishedOnly, setFurnishedOnly] = useState(false);
   const [laundryOnly, setLaundryOnly] = useState(false);
   const [parkingOnly, setParkingOnly] = useState(false);
@@ -531,6 +851,8 @@ function App() {
     maxCommuteTime,
     leaseTerm,
     minBedrooms,
+    minSquareFeet,
+    minBaths,
     furnishedOnly,
     laundryOnly,
     parkingOnly,
@@ -567,6 +889,12 @@ function App() {
     const matchesBedrooms =
       minBedrooms === "" || listing.numBedroom >= Number(minBedrooms);
 
+    const matchesSquareFeet =
+      minSquareFeet === "" || getListingNumber(listing, "squareFootage") >= Number(minSquareFeet);
+
+    const matchesBaths =
+      minBaths === "" || getListingNumber(listing, "bathrooms") >= Number(minBaths);
+
     const matchesFurnished =
       !furnishedOnly || listing.furnished;
 
@@ -581,6 +909,8 @@ function App() {
       matchesCommuteTime &&
       matchesLeaseTerm &&
       matchesBedrooms &&
+      matchesSquareFeet &&
+      matchesBaths &&
       matchesFurnished &&
       matchesLaundry &&
       matchesParking
@@ -625,6 +955,7 @@ function App() {
   const decisionContextKey = JSON.stringify({
     priorityOrder,
     rankingMode,
+    userPreferences,
   });
   const stepPages: Array<{ key: StepPageKey; label: string }> = [
     { key: "preferences", label: "Preferences" },
@@ -697,6 +1028,8 @@ function App() {
     maxCommuteTime,
     leaseTerm,
     minBedrooms,
+    minSquareFeet,
+    minBaths,
     furnishedOnly,
     laundryOnly,
     parkingOnly,
@@ -771,6 +1104,8 @@ function App() {
           maxCommuteTime,
           leaseTerm,
           minBedrooms,
+          minSquareFeet,
+          minBaths,
           furnishedOnly,
           laundryOnly,
           parkingOnly
@@ -834,7 +1169,10 @@ function App() {
           <article className="home-card">
             <p className="eyebrow">Step 1</p>
             <h3>Set preferences</h3>
-            <p>Choose budget, commute, lease, bedrooms, and must-have amenities.</p>
+            <p>
+              Choose budget, commute, lease, bedrooms, space, baths, and
+              must-have amenities.
+            </p>
           </article>
           <article className="home-card">
             <p className="eyebrow">Step 2</p>
@@ -903,6 +1241,24 @@ function App() {
               onChange={(e) => setMinBedrooms(e.target.value)}
             />
           </label>
+          <label>
+            Minimum square feet
+            <input
+              type="number"
+              placeholder="500"
+              value={minSquareFeet}
+              onChange={(e) => setMinSquareFeet(e.target.value)}
+            />
+          </label>
+          <label>
+            Minimum baths
+            <input
+              type="number"
+              placeholder="1"
+              value={minBaths}
+              onChange={(e) => setMinBaths(e.target.value)}
+            />
+          </label>
         </div>
 
         <div className="checkbox-row" aria-label="Required amenities">
@@ -939,6 +1295,8 @@ function App() {
               setMaxCommuteTime("");
               setLeaseTerm("");
               setMinBedrooms("");
+              setMinSquareFeet("");
+              setMinBaths("");
               setFurnishedOnly(false);
               setLaundryOnly(false);
               setParkingOnly(false);
@@ -1093,6 +1451,8 @@ function App() {
                 <option value="commuteTime">Commute time</option>
                 <option value="leaseTerm">Lease term</option>
                 <option value="numBedroom">Bedrooms</option>
+                <option value="squareFootage">Square feet</option>
+                <option value="bathrooms">Baths</option>
               </select>
             </label>
           </div>
@@ -1188,7 +1548,7 @@ function App() {
           <div className="empty-state">
             <p className="eyebrow">Nothing to compare yet</p>
             <p>
-              The filters are too tight for the sample listings. Head back and
+              The filters are too tight for the current listings. Head back and
               try a higher budget, a longer commute, or fewer must-haves.
             </p>
           </div>

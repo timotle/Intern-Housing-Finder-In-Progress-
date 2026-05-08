@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const OpenAI = require("openai");
+const { getHousingListings } = require("../lib/rentcastListings.cjs");
 const app = express();
 const PORT = 5000;
 app.use(cors());
@@ -42,7 +43,21 @@ function getRankedContext(selectedListing, visibleListings = []) {
   };
 }
 
-app.get("/api/listings", (req, res) => {
+app.get("/api/listings", async (req, res) => {
+  try {
+    const listings = await getHousingListings({
+      query: req.query.query,
+      maxPlaces: req.query.maxPlaces,
+    });
+    res.json(listings);
+  } catch (error) {
+    console.error("Could not load housing listings:");
+    console.error(error);
+    res.status(500).json({ error: "Could not load housing listings right now." });
+  }
+});
+
+app.get("/api/sample-listings", (req, res) => {
   const listings = [
   {
     id: 1,
@@ -330,7 +345,7 @@ app.post("/api/explain-match", async (req, res) => {
     - Below: [Second listing below, if exists]
 
     Why It Ranks There:
-    [Explain using price, commute time, lease term, bedrooms, and amenities]
+    [Explain using price, commute time, lease term, bedrooms, square feet, bathrooms, and amenities]
 
     Tradeoffs Compared to Nearby Listings:
     - [Specific comparison to a nearby listing]

@@ -24,6 +24,11 @@ function ListingCard({
     rankLabel = "Rank",
 }: ListingCardProps) {
     const isExplanationOpen = Boolean(explanation) || isLoading;
+    const squareFeet = listing.squareFootage ? `${listing.squareFootage} sq ft` : "Not listed";
+    const baths =
+        listing.bathrooms !== undefined && listing.bathrooms !== null
+            ? `${listing.bathrooms}`
+            : "Not listed";
 
     return(
         <article className={`listing-row ${isExplanationOpen ? "has-explanation" : ""}`}>
@@ -35,9 +40,10 @@ function ListingCard({
                     )}
                 </div>
                 <h3>{listing.name}</h3>
+                <p className="location-line">{listing.location}</p>
                 {!hideScore && listing.matchScore !== undefined && (
                     <p className="score-note">
-                        Scored from price, commute, lease, bedrooms, and amenities.
+                        Scored from price, commute, lease, bedrooms, space, baths, and amenities.
                     </p>
                 )}
                 <dl className="listing-facts">
@@ -57,13 +63,27 @@ function ListingCard({
                         <dt>Bedrooms</dt>
                         <dd>{listing.numBedroom}</dd>
                     </div>
+                    <div>
+                        <dt>Square feet</dt>
+                        <dd>{squareFeet}</dd>
+                    </div>
+                    <div>
+                        <dt>Baths</dt>
+                        <dd>{baths}</dd>
+                    </div>
                 </dl>
-                <p className="location-line">{listing.location}</p>
                 <div className="amenity-tags">
                     {listing.furnished && <span>Furnished</span>}
                     {listing.laundry && <span>Laundry</span>}
                     {listing.parking && <span>Parking</span>}
                 </div>
+                {listing.websiteUri && (
+                    <div className="listing-links">
+                        <a href={listing.websiteUri} target="_blank" rel="noreferrer">
+                            Website
+                        </a>
+                    </div>
+                )}
                 <button disabled={isLoading} onClick={() => onExplainMatch(listing)}>
                     {isLoading
                         ? "Generating..."

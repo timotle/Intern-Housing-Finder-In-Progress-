@@ -1,9 +1,10 @@
 """
-Experimental PyTorch training script for the housing taste profile feature.
+PyTorch training script for the housing taste profile feature.
 
 The deployed app does not run PyTorch directly. This script is for training or
 refreshing lightweight profile weights locally, then exporting those weights for
-the React app to use in src/data/tasteProfileModel.ts.
+the React app to use in src/data/tasteProfileModel.ts. This keeps the website
+fast on Vercel while still making the profile logic ML-backed.
 """
 
 from __future__ import annotations
@@ -25,16 +26,22 @@ FEATURES = [
     "commutePriority",
     "leasePriority",
     "bedroomsPriority",
+    "squareFeetPriority",
+    "bathsPriority",
     "amenitiesPriority",
     "strictBudget",
     "strictCommute",
     "leaseSet",
     "bedroomNeed",
+    "squareFeetNeed",
+    "bathNeed",
     "amenityNeed",
     "priceChart",
     "commuteChart",
     "leaseChart",
     "bedroomChart",
+    "squareFeetChart",
+    "bathChart",
     "explanationActivity",
     "pagingActivity",
 ]
@@ -46,6 +53,8 @@ PROFILES = [
     "lease_planner",
     "comfort",
     "balanced",
+    "space_hunter",
+    "bathroom_planner",
 ]
 
 
@@ -59,7 +68,9 @@ TRAINING_ROWS = [
     row({"commutePriority": 1, "strictCommute": 1, "commuteChart": 1, "amenityNeed": 0.6}, "convenience"),
     row({"leasePriority": 1, "leaseSet": 1, "leaseChart": 1}, "lease_planner"),
     row({"bedroomsPriority": 0.9, "amenitiesPriority": 1, "bedroomNeed": 1, "amenityNeed": 1, "bedroomChart": 1}, "comfort"),
-    row({"budgetPriority": 0.8, "commutePriority": 0.8, "leasePriority": 0.7, "amenitiesPriority": 0.6, "pagingActivity": 0.6}, "balanced"),
+    row({"squareFeetPriority": 1, "squareFeetNeed": 1, "squareFeetChart": 1, "bedroomsPriority": 0.5}, "space_hunter"),
+    row({"bathsPriority": 1, "bathNeed": 1, "bathChart": 1, "bedroomsPriority": 0.4}, "bathroom_planner"),
+    row({"budgetPriority": 0.8, "commutePriority": 0.8, "leasePriority": 0.7, "squareFeetPriority": 0.5, "bathsPriority": 0.5, "amenitiesPriority": 0.6, "pagingActivity": 0.6}, "balanced"),
 ]
 
 
