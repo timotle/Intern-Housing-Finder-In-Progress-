@@ -12,6 +12,7 @@ type ListingCardProps = {
     isLoading: boolean;
     hideScore: boolean;
     rankLabel?: string;
+    isMapSelected?: boolean;
 };
 
 function ListingCard({
@@ -22,6 +23,7 @@ function ListingCard({
     isLoading,
     hideScore,
     rankLabel = "Rank",
+    isMapSelected = false,
 }: ListingCardProps) {
     const isExplanationOpen = Boolean(explanation) || isLoading;
     const squareFeet = listing.squareFootage ? `${listing.squareFootage} sq ft` : "Not listed";
@@ -31,7 +33,11 @@ function ListingCard({
             : "Not listed";
 
     return(
-        <article className={`listing-row ${isExplanationOpen ? "has-explanation" : ""}`}>
+        <article
+            className={`listing-row ${isExplanationOpen ? "has-explanation" : ""} ${
+                isMapSelected ? "is-map-selected" : ""
+            }`}
+        >
             <div className="listing-card">
                 <div className="listing-topline">
                     <span>{rankLabel} #{rank}</span>

@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import * as L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import type { Listing } from "./types";
 import ListingCard from "./components/ListingCard";
 import {
@@ -954,6 +956,193 @@ function ListingMetricChart({
   );
 }
 
+function escapeMapText(value: string | number | undefined) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function createListingMapIcon({
+  label,
+  isHighlighted,
+  isSelected,
+}: {
+  label: string;
+  isHighlighted: boolean;
+  isSelected: boolean;
+}) {
+  const className = [
+    "map-marker",
+    "map-marker-listing",
+    isHighlighted ? "is-highlighted" : "",
+    isSelected ? "is-selected" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return L.divIcon({
+    className: "map-marker-shell",
+    html: `<span class="${className}">${escapeMapText(label)}</span>`,
+    iconSize: [34, 34],
+    iconAnchor: [17, 17],
+    popupAnchor: [0, -18],
+  });
+}
+
+function createCommuteTargetIcon() {
+  return L.divIcon({
+    className: "map-marker-shell",
+    html: `<span class="map-marker map-marker-target"><span class="map-marker-target-star">★</span></span>`,
+    iconSize: [42, 42],
+    iconAnchor: [21, 21],
+    popupAnchor: [0, -22],
+  });
+}
+
+function ListingsMap({
+  listings,
+  highlightedListingIds,
+  selectedListingId,
+  commuteTarget,
+  rankLabel,
+  onListingSelect,
+}: {
+  listings: ScoredListing[];
+  highlightedListingIds: number[];
+  selectedListingId: number | null;
+  commuteTarget: CommuteTarget;
+  rankLabel: string;
+  onListingSelect: (listingId: number) => void;
+}) {
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const markerLayerRef = useRef<L.LayerGroup | null>(null);
+
+  useEffect(() => {
+    if (!mapContainerRef.current || mapRef.current) {
+      return;
+    }
+
+    const map = L.map(mapContainerRef.current, {
+      scrollWheelZoom: false,
+      zoomControl: true,
+    }).setView([commuteTarget.latitude, commuteTarget.longitude], 12);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19,
+    }).addTo(map);
+
+    mapRef.current = map;
+    markerLayerRef.current = L.layerGroup().addTo(map);
+    window.setTimeout(() => map.invalidateSize(), 0);
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+      markerLayerRef.current = null;
+    };
+  }, [commuteTarget.latitude, commuteTarget.longitude]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const markerLayer = markerLayerRef.current;
+
+    if (!map || !markerLayer) {
+      return;
+    }
+
+    markerLayer.clearLayers();
+
+    const targetLatLng = L.latLng(commuteTarget.latitude, commuteTarget.longitude);
+    const bounds = L.latLngBounds([targetLatLng]);
+
+    L.marker(targetLatLng, {
+      icon: createCommuteTargetIcon(),
+      keyboard: true,
+      title: commuteTarget.label,
+    })
+      .bindPopup(
+        `<strong>${escapeMapText(commuteTarget.label)}</strong><br />Internship location`
+      )
+      .addTo(markerLayer);
+
+    listings.forEach((listing, index) => {
+      if (!Number.isFinite(listing.latitude) || !Number.isFinite(listing.longitude)) {
+        return;
+      }
+
+      const listingLatLng = L.latLng(Number(listing.latitude), Number(listing.longitude));
+      const isHighlighted = highlightedListingIds.includes(listing.id);
+      const isSelected = selectedListingId === listing.id;
+      const marker = L.marker(listingLatLng, {
+        icon: createListingMapIcon({
+          label: String(index + 1),
+          isHighlighted,
+          isSelected,
+        }),
+        keyboard: true,
+        title: listing.name,
+      });
+
+      marker
+        .bindPopup(
+          `<strong>${escapeMapText(listing.name)}</strong><br />${escapeMapText(
+            rankLabel
+          )} #${index + 1}<br />${escapeMapText(listing.commuteTime)} min commute`
+        )
+        .on("click", () => onListingSelect(listing.id))
+        .addTo(markerLayer);
+
+      bounds.extend(listingLatLng);
+    });
+
+    window.setTimeout(() => {
+      map.invalidateSize();
+      map.fitBounds(bounds, {
+        maxZoom: 13,
+        padding: [28, 28],
+      });
+    }, 0);
+  }, [
+    commuteTarget,
+    highlightedListingIds,
+    listings,
+    onListingSelect,
+    rankLabel,
+    selectedListingId,
+  ]);
+
+  return (
+    <section className="map-panel">
+      <div className="map-header">
+        <div>
+          <p className="eyebrow">Map view</p>
+          <h2>See listings near your commute</h2>
+        </div>
+        <div className="map-legend" aria-label="Map marker legend">
+          <span className="legend-target">Internship</span>
+          <span className="legend-current">Current 4</span>
+          <span className="legend-other">Other listings</span>
+        </div>
+      </div>
+      <p className="panel-copy">
+        Yellow pins match the 4 listings shown below. Click any pin to jump to
+        that listing.
+      </p>
+      <div
+        className="listing-map"
+        ref={mapContainerRef}
+        role="img"
+        aria-label="Map of filtered listings and internship location"
+      />
+    </section>
+  );
+}
+
 function App() {
   const listingsPerPage = 4;
   const defaultPriorityOrder: ScoreCategoryKey[] = [
@@ -984,6 +1173,7 @@ function App() {
   const [explanations, setExplanations] = useState<Record<number, string>>({});
   const [loadingIds, setLoadingIds] = useState<number[]>([]);
   const [currentPage, setCurrentPage] = useState(0);
+  const [selectedMapListingId, setSelectedMapListingId] = useState<number | null>(null);
   const [chartType, setChartType] = useState<ChartType>("bar");
   const [chartMetric, setChartMetric] = useState<ChartMetric>("matchScore");
   const [rankingMode, setRankingMode] = useState<RankingMode>("default");
@@ -1181,6 +1371,27 @@ function App() {
     setCommuteResolutionMessage("");
   };
 
+  const selectListingFromMap = (listingId: number) => {
+    const listingIndex = sortedListings.findIndex((listing) => listing.id === listingId);
+
+    if (listingIndex < 0) {
+      return;
+    }
+
+    setSelectedMapListingId(listingId);
+    setCurrentPage(Math.floor(listingIndex / listingsPerPage));
+    setInteractions((current) => ({
+      ...current,
+      listingPageChanges: current.listingPageChanges + 1,
+    }));
+    window.setTimeout(() => {
+      document.querySelector(".results-section")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 0);
+  };
+
   const saveLocationAndContinue = async () => {
     const typedLocation = internshipLocationInput.trim();
 
@@ -1242,6 +1453,7 @@ function App() {
 
   useEffect(() => {
     setCurrentPage(0);
+    setSelectedMapListingId(null);
   }, [
     selectedCommuteTarget.id,
     commuteTargetName,
@@ -1725,6 +1937,16 @@ function App() {
 
       <section className={`page-section results-page ${activePage === "results" ? "" : "is-hidden"}`}>
       <div className="results-layout">
+      {activePage === "results" && sortedListings.length > 0 && (
+        <ListingsMap
+          listings={sortedListings}
+          highlightedListingIds={visibleListingIds}
+          selectedListingId={selectedMapListingId}
+          commuteTarget={selectedCommuteTarget}
+          rankLabel={rankingMode === "skipped" ? "Listing" : "Rank"}
+          onListingSelect={selectListingFromMap}
+        />
+      )}
       <section className="chart-panel">
         <div className="chart-header">
           <div>
@@ -1851,6 +2073,7 @@ function App() {
                   isLoading={loadingIds.includes(listing.id)}
                   hideScore={rankingMode === "skipped"}
                   rankLabel={rankingMode === "skipped" ? "Listing" : "Rank"}
+                  isMapSelected={selectedMapListingId === listing.id}
                 />
               ))}
             </div>
