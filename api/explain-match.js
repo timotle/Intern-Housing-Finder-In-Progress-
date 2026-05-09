@@ -59,6 +59,7 @@ IMPORTANT RULES:
 - Use the exact selected listing rank shown below.
 - Do NOT invent a different total number of listings.
 - Only compare against the above and below listings provided.
+- Commute time is estimated to the user's selected internship location when one is provided.
 
 Your response must follow this exact structure:
 
@@ -72,7 +73,7 @@ Nearby Comparison:
 - Below: [Second listing below, if exists]
 
 Why It Ranks There:
-[Explain using price, commute time, lease term, bedrooms, and amenities]
+[Explain using price, commute time, lease term, bedrooms, square feet, bathrooms, and amenities]
 
 Tradeoffs Compared to Nearby Listings:
 - [Specific comparison to a nearby listing]

@@ -13,6 +13,8 @@ Intern Housing Finder is a web app I built to help students and interns compare 
 ## Features
 
 - Filter housing by price, commute time, lease term, bedrooms, square feet, baths, and amenities
+- Choose an internship area so commute estimates update before results are shown
+- Use the OpenAI API to help match typed internship locations to an estimated commute area
 - Rank listings with a match score
 - Drag and reorder ranking rules based on what the user cares about most
 - View 4 listings at a time so the page does not feel overwhelming
@@ -38,11 +40,11 @@ Intern Housing Finder is a web app I built to help students and interns compare 
 
 ## How It Works
 
-Users enter housing preferences like budget, commute time, lease length, bedrooms, square feet, baths, and amenities. The app filters the listings and ranks them with a match score. Users can also drag the ranking rules to choose what matters most to them, like cheaper rent, shorter commute, lease fit, space, bathrooms, or amenities.
+Users first choose where their internship is, like UW, Downtown Seattle, South Lake Union, Bellevue, or Redmond. They can also type a company or internship name. The app uses the OpenAI API to help match that text to an estimated commute area, and if it cannot match it confidently, it falls back to the closest preset area instead of breaking. After that, users enter housing preferences like budget, commute time, lease length, bedrooms, square feet, baths, and amenities. The app filters the listings and ranks them with a match score. Users can also drag the ranking rules to choose what matters most to them, like cheaper rent, shorter commute, lease fit, space, bathrooms, or amenities.
 
 The listing data comes from RentCast. I use RentCast to refresh real active rental listings near the University of Washington, then save those listings into the project so users are not making API calls every time they visit the site. This keeps the app cheaper to run while still replacing the old fake listings with real rental data.
 
-RentCast gives real rent, bedrooms, bathrooms, square footage, listing status, and days on market. Commute time is still an estimate based on distance to campus, and lease length/amenities should still be verified because rental listing APIs do not always include every detail students care about.
+RentCast gives real rent, bedrooms, bathrooms, square footage, listing status, and days on market. Commute time is still a rough estimate, but now it updates based on the internship location or area the user chooses. Lease length and amenities should still be verified because rental listing APIs do not always include every detail students care about.
 
 The AI part explains tradeoffs between housing options in a way that is easier to understand. It does not just assume the listing a user clicks is the best option. It compares the listing against the ranked list first, then explains why it ranks where it does.
 
@@ -63,6 +65,7 @@ I do not need to put the RentCast key on Vercel because the app serves the cache
 ## What Still Needs Development
 
 - Keep refreshing the cached RentCast listings when I want newer housing data
+- Add exact address search later if I want commute estimates to be more precise than rough area matching
 - Find a better way to verify commute, lease, and amenity details
 - Keep improving the UI
 - Keep improving the ML training examples as the project grows

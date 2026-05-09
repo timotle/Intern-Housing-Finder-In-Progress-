@@ -9,6 +9,7 @@ export type Listing = {
     address?: string;
     commuteTime: number;
     commuteNote?: string;
+    commuteTargetLabel?: string;
     leaseTerm: number;
     leaseNote?: string;
     numBedroom: number;

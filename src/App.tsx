@@ -7,6 +7,10 @@ import {
 } from "./data/tasteProfileModel";
 
 type UserPreferences = {
+  commuteTarget: string;
+  commuteArea: string;
+  commuteLatitude: number;
+  commuteLongitude: number;
   maxPrice: string;
   maxCommuteTime: string;
   leaseTerm: string;
@@ -51,7 +55,7 @@ type ChartMetric =
   | "squareFootage"
   | "bathrooms";
 type ChartType = "bar" | "line";
-type PageKey = "home" | "preferences" | "ranking" | "results";
+type PageKey = "home" | "location" | "preferences" | "ranking" | "results";
 type StepPageKey = Exclude<PageKey, "home">;
 type RankingMode = "default" | "custom" | "skipped";
 type InteractionSignals = {
@@ -68,7 +72,64 @@ type TasteProfile = {
   smartSuggestion: string;
 };
 
+type CommuteTarget = {
+  id: string;
+  label: string;
+  area: string;
+  latitude: number;
+  longitude: number;
+  keywords: string[];
+  source?: "preset" | "openai" | "fallback";
+  confidence?: "high" | "medium" | "low";
+  note?: string;
+};
+
+type CommuteResolutionStatus = "idle" | "resolving" | "resolved" | "fallback";
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+
+const commuteTargets: CommuteTarget[] = [
+  {
+    id: "uw",
+    label: "University of Washington",
+    area: "U District",
+    latitude: 47.6553,
+    longitude: -122.3035,
+    keywords: ["uw", "university of washington", "u district", "udistrict", "campus"],
+  },
+  {
+    id: "downtown",
+    label: "Downtown Seattle",
+    area: "Downtown",
+    latitude: 47.6062,
+    longitude: -122.3321,
+    keywords: ["downtown", "pike", "pioneer square", "waterfront", "westlake"],
+  },
+  {
+    id: "slu",
+    label: "South Lake Union",
+    area: "SLU",
+    latitude: 47.6236,
+    longitude: -122.336,
+    keywords: ["slu", "south lake union", "amazon", "fred hutch", "seattle center"],
+  },
+  {
+    id: "bellevue",
+    label: "Bellevue",
+    area: "Eastside",
+    latitude: 47.6101,
+    longitude: -122.2015,
+    keywords: ["bellevue", "factoria", "overlake"],
+  },
+  {
+    id: "redmond",
+    label: "Redmond",
+    area: "Eastside",
+    latitude: 47.674,
+    longitude: -122.1215,
+    keywords: ["redmond", "microsoft", "meta", "tech campus"],
+  },
+];
 
 async function getMatchExplanation(
   userPreferences: UserPreferences,
@@ -108,6 +169,53 @@ async function getMatchExplanation(
       ? `Sorry, the AI explanation could not be generated right now. ${error.message}`
       : "Sorry, the AI explanation could not be generated right now.";
   }
+}
+
+async function resolveCommuteTarget(
+  query: string,
+  fallbackTarget: CommuteTarget
+): Promise<{ target: CommuteTarget; status: CommuteResolutionStatus; message: string }> {
+  const response = await fetch(`${API_BASE_URL}/api/resolve-commute-target`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      query,
+      fallbackTargetId: fallbackTarget.id,
+    }),
+  });
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error || "Could not match that location right now.");
+  }
+
+  const resolvedTarget = data.target;
+
+  if (
+    !resolvedTarget ||
+    !Number.isFinite(Number(resolvedTarget.latitude)) ||
+    !Number.isFinite(Number(resolvedTarget.longitude))
+  ) {
+    throw new Error("The location match came back incomplete.");
+  }
+
+  return {
+    target: {
+      id: resolvedTarget.id || `resolved-${Date.now()}`,
+      label: resolvedTarget.label || query,
+      area: resolvedTarget.area || fallbackTarget.area,
+      latitude: Number(resolvedTarget.latitude),
+      longitude: Number(resolvedTarget.longitude),
+      keywords: [],
+      source: resolvedTarget.source || data.source || "openai",
+      confidence: resolvedTarget.confidence || data.confidence || "medium",
+      note: resolvedTarget.note || data.message,
+    },
+    status: data.source === "openai" ? "resolved" : "fallback",
+    message: data.message || "Matched your internship area.",
+  };
 }
 
 const scoreCategories: Record<
@@ -296,6 +404,50 @@ function getMedianValue(values: number[]) {
 
   const sortedValues = [...values].sort((a, b) => a - b);
   return sortedValues[Math.floor(sortedValues.length / 2)];
+}
+
+function toRadians(value: number) {
+  return (value * Math.PI) / 180;
+}
+
+function getDistanceMiles(listing: Listing, target: CommuteTarget) {
+  if (!Number.isFinite(listing.latitude) || !Number.isFinite(listing.longitude)) {
+    return null;
+  }
+
+  const earthRadiusMiles = 3958.8;
+  const dLat = toRadians(target.latitude - Number(listing.latitude));
+  const dLng = toRadians(target.longitude - Number(listing.longitude));
+  const lat1 = toRadians(Number(listing.latitude));
+  const lat2 = toRadians(target.latitude);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return earthRadiusMiles * c;
+}
+
+function estimateCommuteMinutesForTarget(listing: Listing, target: CommuteTarget) {
+  const miles = getDistanceMiles(listing, target);
+
+  if (miles === null) {
+    return listing.commuteTime || 25;
+  }
+
+  return Math.max(5, Math.round(miles * 7 + 4));
+}
+
+function findTargetFromInput(input: string) {
+  const normalizedInput = input.trim().toLowerCase();
+
+  if (normalizedInput === "") {
+    return undefined;
+  }
+
+  return commuteTargets.find((target) =>
+    target.keywords.some((keyword) => normalizedInput.includes(keyword))
+  );
 }
 
 function getPriorityStrength(
@@ -814,6 +966,12 @@ function App() {
     "amenities",
   ];
   const [activePage, setActivePage] = useState<PageKey>("home");
+  const [selectedCommuteTargetId, setSelectedCommuteTargetId] = useState("uw");
+  const [internshipLocationInput, setInternshipLocationInput] = useState("");
+  const [resolvedCommuteTarget, setResolvedCommuteTarget] = useState<CommuteTarget | null>(null);
+  const [commuteResolutionStatus, setCommuteResolutionStatus] =
+    useState<CommuteResolutionStatus>("idle");
+  const [commuteResolutionMessage, setCommuteResolutionMessage] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [maxCommuteTime, setMaxCommuteTime] = useState("");
   const [leaseTerm, setLeaseTerm] = useState("");
@@ -846,7 +1004,19 @@ function App() {
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const presetCommuteTarget =
+    commuteTargets.find((target) => target.id === selectedCommuteTargetId) ||
+    commuteTargets[0];
+  const selectedCommuteTarget = resolvedCommuteTarget || presetCommuteTarget;
+  const commuteTargetName =
+    internshipLocationInput.trim() === ""
+      ? selectedCommuteTarget.label
+      : internshipLocationInput.trim();
   const userPreferences: UserPreferences = {
+    commuteTarget: commuteTargetName,
+    commuteArea: selectedCommuteTarget.label,
+    commuteLatitude: selectedCommuteTarget.latitude,
+    commuteLongitude: selectedCommuteTarget.longitude,
     maxPrice,
     maxCommuteTime,
     leaseTerm,
@@ -876,7 +1046,14 @@ function App() {
     fetchListings();
   }, []);
 
-  const filteredListings = listings.filter((listing) => {
+  const listingsWithCommute = listings.map((listing) => ({
+    ...listing,
+    commuteTime: estimateCommuteMinutesForTarget(listing, selectedCommuteTarget),
+    commuteNote: `Distance-based estimate to ${commuteTargetName}`,
+    commuteTargetLabel: commuteTargetName,
+  }));
+
+  const filteredListings = listingsWithCommute.filter((listing) => {
     const matchesPrice =
       maxPrice === "" || listing.price <= Number(maxPrice);
 
@@ -958,6 +1135,7 @@ function App() {
     userPreferences,
   });
   const stepPages: Array<{ key: StepPageKey; label: string }> = [
+    { key: "location", label: "Location" },
     { key: "preferences", label: "Preferences" },
     { key: "ranking", label: "Ranking Rules" },
     { key: "results", label: "Results" },
@@ -997,6 +1175,47 @@ function App() {
     }));
   };
 
+  const resetCommuteResolution = () => {
+    setResolvedCommuteTarget(null);
+    setCommuteResolutionStatus("idle");
+    setCommuteResolutionMessage("");
+  };
+
+  const saveLocationAndContinue = async () => {
+    const typedLocation = internshipLocationInput.trim();
+
+    if (typedLocation === "") {
+      resetCommuteResolution();
+      setCurrentPage(0);
+      setActivePage("preferences");
+      return;
+    }
+
+    setCommuteResolutionStatus("resolving");
+    setCommuteResolutionMessage("Matching your internship area...");
+
+    try {
+      const matchedLocation = await resolveCommuteTarget(typedLocation, presetCommuteTarget);
+      setResolvedCommuteTarget(matchedLocation.target);
+      setCommuteResolutionStatus(matchedLocation.status);
+      setCommuteResolutionMessage(matchedLocation.message);
+      setCurrentPage(0);
+      setActivePage("preferences");
+    } catch (error) {
+      const fallbackTarget = findTargetFromInput(typedLocation) || presetCommuteTarget;
+      setResolvedCommuteTarget(null);
+      setSelectedCommuteTargetId(fallbackTarget.id);
+      setCommuteResolutionStatus("fallback");
+      setCommuteResolutionMessage(
+        error instanceof Error
+          ? `I could not match that exactly, so I used ${fallbackTarget.label}.`
+          : `I used ${fallbackTarget.label} for now.`
+      );
+      setCurrentPage(0);
+      setActivePage("preferences");
+    }
+  };
+
   const movePriority = (targetCategory: ScoreCategoryKey) => {
     if (!draggedPriority || draggedPriority === targetCategory) {
       return;
@@ -1024,6 +1243,8 @@ function App() {
   useEffect(() => {
     setCurrentPage(0);
   }, [
+    selectedCommuteTarget.id,
+    commuteTargetName,
     maxPrice,
     maxCommuteTime,
     leaseTerm,
@@ -1099,17 +1320,7 @@ function App() {
 
     try {
       const explanation = await getMatchExplanation(
-        {
-          maxPrice,
-          maxCommuteTime,
-          leaseTerm,
-          minBedrooms,
-          minSquareFeet,
-          minBaths,
-          furnishedOnly,
-          laundryOnly,
-          parkingOnly
-        },
+        userPreferences,
         listing,
         sortedListings
       );
@@ -1168,6 +1379,14 @@ function App() {
         <div className="home-grid">
           <article className="home-card">
             <p className="eyebrow">Step 1</p>
+            <h3>Add internship location</h3>
+            <p>
+              Pick where you are commuting to so the housing options can update
+              around your actual internship area.
+            </p>
+          </article>
+          <article className="home-card">
+            <p className="eyebrow">Step 2</p>
             <h3>Set preferences</h3>
             <p>
               Choose budget, commute, lease, bedrooms, space, baths, and
@@ -1175,7 +1394,7 @@ function App() {
             </p>
           </article>
           <article className="home-card">
-            <p className="eyebrow">Step 2</p>
+            <p className="eyebrow">Step 3</p>
             <h3>Rank priorities</h3>
             <p>
               Drag the priority cards in order from most important to least
@@ -1183,7 +1402,7 @@ function App() {
             </p>
           </article>
           <article className="home-card">
-            <p className="eyebrow">Step 3</p>
+            <p className="eyebrow">Step 4</p>
             <h3>Compare results</h3>
             <p>
               See your filtered listings, compare them visually, and review the
@@ -1192,8 +1411,100 @@ function App() {
           </article>
         </div>
         <div className="start-panel">
-          <button onClick={() => setActivePage("preferences")} type="button">
+          <button onClick={() => setActivePage("location")} type="button">
             Start
+          </button>
+        </div>
+      </section>
+
+      <section className={`page-section decision-panel location-page ${activePage === "location" ? "" : "is-hidden"}`}>
+        <div className="panel-heading">
+          <p className="eyebrow">Commute target</p>
+          <h2>Where is your internship?</h2>
+        </div>
+        <p className="panel-copy">
+          Type your company or choose the closest area. This updates the commute
+          estimate for every listing before the app filters and ranks them.
+        </p>
+
+        <label className="location-input-label">
+          Company, school, or internship area
+          <input
+            type="text"
+            placeholder="Amazon SLU, Microsoft Redmond, Downtown Seattle..."
+            value={internshipLocationInput}
+            onChange={(event) => {
+              const nextLocation = event.target.value;
+              const matchedTarget = findTargetFromInput(nextLocation);
+              setInternshipLocationInput(nextLocation);
+              setResolvedCommuteTarget(null);
+              setCommuteResolutionStatus("idle");
+              setCommuteResolutionMessage("");
+
+              if (matchedTarget) {
+                setSelectedCommuteTargetId(matchedTarget.id);
+              }
+            }}
+          />
+        </label>
+
+        <div className="location-grid" aria-label="Common commute areas">
+          {commuteTargets.map((target) => (
+            <button
+              className={`location-card ${selectedCommuteTargetId === target.id ? "is-selected" : ""}`}
+              key={target.id}
+              onClick={() => {
+                setSelectedCommuteTargetId(target.id);
+                setResolvedCommuteTarget(null);
+                setCommuteResolutionStatus("idle");
+                setCommuteResolutionMessage("");
+              }}
+              type="button"
+            >
+              <span>{target.label}</span>
+              <small>{target.area}</small>
+            </button>
+          ))}
+        </div>
+
+        <div className="location-estimate-note">
+          <p className="eyebrow">Current commute estimate</p>
+          <p>
+            {commuteResolutionStatus === "resolving" ? "Matching " : "Using "}
+            <strong>{selectedCommuteTarget.label}</strong>
+            {commuteTargetName !== selectedCommuteTarget.label && (
+              <>
+                {" "}for <strong>{commuteTargetName}</strong>
+              </>
+            )}
+            .
+          </p>
+          {commuteResolutionMessage !== "" && (
+            <p className="location-resolution-message">{commuteResolutionMessage}</p>
+          )}
+        </div>
+
+        <div className="page-actions">
+          <button
+            className="secondary-button"
+            onClick={() => {
+              setInternshipLocationInput("");
+              setSelectedCommuteTargetId("uw");
+              resetCommuteResolution();
+              setCurrentPage(0);
+              setActivePage("preferences");
+            }}
+            type="button"
+          >
+            Skip this step
+          </button>
+          <button
+            disabled={commuteResolutionStatus === "resolving"}
+            onClick={saveLocationAndContinue}
+            type="button"
+          >
+            {commuteResolutionStatus === "resolving" ? "Matching..." : "Save & Continue"}{" "}
+            <span aria-hidden="true">&rarr;</span>
           </button>
         </div>
       </section>
