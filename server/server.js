@@ -161,7 +161,12 @@ app.get("/api/listings", async (req, res) => {
   try {
     const listings = await getHousingListings({
       query: req.query.query,
+      latitude: req.query.latitude,
+      longitude: req.query.longitude,
+      targetLabel: req.query.targetLabel,
+      targetCity: req.query.targetCity,
       maxPlaces: req.query.maxPlaces,
+      maxListings: req.query.maxListings,
     });
     res.json(listings);
   } catch (error) {

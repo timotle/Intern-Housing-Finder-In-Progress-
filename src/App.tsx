@@ -440,6 +440,20 @@ function estimateCommuteMinutesForTarget(listing: Listing, target: CommuteTarget
   return Math.max(5, Math.round(miles * 7 + 4));
 }
 
+function getTargetCity(target: CommuteTarget) {
+  const targetText = `${target.label} ${target.area}`.toLowerCase();
+
+  if (targetText.includes("bellevue")) {
+    return "Bellevue";
+  }
+
+  if (targetText.includes("redmond")) {
+    return "Redmond";
+  }
+
+  return "Seattle";
+}
+
 function findTargetFromInput(input: string) {
   const normalizedInput = input.trim().toLowerCase();
 
@@ -1021,7 +1035,7 @@ function createCommuteTargetIcon() {
 
 function ListingsMap({
   listings,
-  highlightedListingIds,
+  mapListingIds,
   selectedListingId,
   commuteTarget,
   commuteTargetDisplayName,
@@ -1029,7 +1043,7 @@ function ListingsMap({
   onListingSelect,
 }: {
   listings: ScoredListing[];
-  highlightedListingIds: number[];
+  mapListingIds: number[];
   selectedListingId: number | null;
   commuteTarget: CommuteTarget;
   commuteTargetDisplayName: string;
@@ -1090,17 +1104,20 @@ function ListingsMap({
       .addTo(markerLayer);
 
     listings.forEach((listing, index) => {
-      if (!Number.isFinite(listing.latitude) || !Number.isFinite(listing.longitude)) {
+      if (
+        !mapListingIds.includes(listing.id) ||
+        !Number.isFinite(listing.latitude) ||
+        !Number.isFinite(listing.longitude)
+      ) {
         return;
       }
 
       const listingLatLng = L.latLng(Number(listing.latitude), Number(listing.longitude));
-      const isHighlighted = highlightedListingIds.includes(listing.id);
       const isSelected = selectedListingId === listing.id;
       const marker = L.marker(listingLatLng, {
         icon: createListingMapIcon({
           label: String(index + 1),
-          isHighlighted,
+          isHighlighted: true,
           isSelected,
         }),
         keyboard: true,
@@ -1129,8 +1146,8 @@ function ListingsMap({
   }, [
     commuteTarget,
     commuteTargetDisplayName,
-    highlightedListingIds,
     listings,
+    mapListingIds,
     onListingSelect,
     rankLabel,
     selectedListingId,
@@ -1145,13 +1162,12 @@ function ListingsMap({
         </div>
         <div className="map-legend" aria-label="Map marker legend">
           <span className="legend-target">Internship</span>
-          <span className="legend-current">Current 4</span>
-          <span className="legend-other">Other places</span>
+          <span className="legend-current">{mapListingIds.length} places</span>
         </div>
       </div>
       <p className="panel-copy">
-        Pink pins are the 4 cards shown below. Click any pin to jump to that
-        place.
+        The map shows your internship plus the places from the current results
+        page, so it stays easy to read.
       </p>
       <div
         className="listing-map"
@@ -1204,6 +1220,8 @@ function App() {
   const [showProfileUpdatedPrompt, setShowProfileUpdatedPrompt] = useState(false);
   const [isResultsIntroLoading, setIsResultsIntroLoading] = useState(false);
   const resultsIntroTimeoutRef = useRef<number | null>(null);
+  const priorityListRef = useRef<HTMLDivElement | null>(null);
+  const draggedPriorityRef = useRef<ScoreCategoryKey | null>(null);
   const [interactions, setInteractions] = useState<InteractionSignals>({
     explanationClicks: [],
     resultPageViews: 0,
@@ -1221,6 +1239,7 @@ function App() {
     commuteTargets.find((target) => target.id === selectedCommuteTargetId) ||
     commuteTargets[0];
   const selectedCommuteTarget = resolvedCommuteTarget || presetCommuteTarget;
+  const selectedCommuteTargetCity = getTargetCity(selectedCommuteTarget);
   const commuteLocationQuery = internshipLocationInput.trim();
   const internshipDisplayName =
     internshipNameInput.trim() === "" ? selectedCommuteTarget.label : internshipNameInput.trim();
@@ -1248,23 +1267,49 @@ function App() {
     parkingOnly,
   };
   useEffect(() => {
+    let isCurrentRequest = true;
+
     const fetchListings = async () => {
+      setLoading(true);
       try {
-        const response = await fetch(`${API_BASE_URL}/api/listings`);
+        const params = new URLSearchParams({
+          latitude: String(selectedCommuteTarget.latitude),
+          longitude: String(selectedCommuteTarget.longitude),
+          targetLabel: selectedCommuteTarget.label,
+          targetCity: selectedCommuteTargetCity,
+          maxListings: "24",
+        });
+        const response = await fetch(`${API_BASE_URL}/api/listings?${params.toString()}`);
         if (!response.ok) {
           throw new Error("Failed to fetch listings");
         }
         const data: Listing[] = await response.json();
-        setListings(data);
+        if (isCurrentRequest) {
+          setListings(data);
+          setError("");
+        }
       } catch (err) {
         console.error(err);
-        setError("Could not load listings");
+        if (isCurrentRequest) {
+          setError("Could not load listings");
+        }
       } finally {
-        setLoading(false);
+        if (isCurrentRequest) {
+          setLoading(false);
+        }
       }
     };
     fetchListings();
-  }, []);
+
+    return () => {
+      isCurrentRequest = false;
+    };
+  }, [
+    selectedCommuteTarget.latitude,
+    selectedCommuteTarget.longitude,
+    selectedCommuteTarget.label,
+    selectedCommuteTargetCity,
+  ]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1285,12 +1330,16 @@ function App() {
     commuteTargetLabel: commuteTargetName,
   }));
 
-  const filteredListings = listingsWithCommute.filter((listing) => {
+  const hasCommuteLimit = maxCommuteTime !== "";
+  const listingMatchesFilters = (
+    listing: Listing,
+    options: { includeCommute: boolean } = { includeCommute: true }
+  ) => {
     const matchesPrice =
       maxPrice === "" || listing.price <= Number(maxPrice);
 
     const matchesCommuteTime =
-      maxCommuteTime === "" || listing.commuteTime <= Number(maxCommuteTime);
+      !options.includeCommute || maxCommuteTime === "" || listing.commuteTime <= Number(maxCommuteTime);
 
     const matchesLeaseTerm =
       leaseTerm === "" || listing.leaseTerm === Number(leaseTerm);
@@ -1324,7 +1373,29 @@ function App() {
       matchesLaundry &&
       matchesParking
     );
-  });
+  };
+  const exactFilteredListings = listingsWithCommute.filter((listing) =>
+    listingMatchesFilters(listing)
+  );
+  const commuteRelaxedListings = hasCommuteLimit
+    ? listingsWithCommute.filter((listing) =>
+        listingMatchesFilters(listing, { includeCommute: false })
+      )
+    : [];
+  const isShowingCommuteFallback =
+    exactFilteredListings.length === 0 && commuteRelaxedListings.length > 0;
+  const noListingsLoadedForArea = !loading && listingsWithCommute.length === 0;
+  const emptyResultsCopy = noListingsLoadedForArea
+    ? `I couldn't load nearby live listings for ${selectedCommuteTarget.label} right now. Try another nearby area or check again in a bit.`
+    : "Nothing matches those filters yet. Go back and loosen one thing to see more options.";
+  const filteredListings = isShowingCommuteFallback
+    ? [...commuteRelaxedListings]
+        .sort((a, b) => a.commuteTime - b.commuteTime)
+        .slice(0, Math.max(listingsPerPage * 2, 8))
+    : exactFilteredListings;
+  const commuteFallbackMessage = isShowingCommuteFallback
+    ? `No places were inside ${maxCommuteTime} minutes of ${commuteTargetName}, so these are the closest places that match your other must-haves.`
+    : "";
   const scoredListings: ScoredListing[] = filteredListings.map((listing) => {
     const scoreBreakdown = calculateScoreBreakdown(
       listing,
@@ -1359,6 +1430,8 @@ function App() {
     currentPageStart + listingsPerPage
   );
   const visibleListingIds = visiblePageListings.map((listing) => listing.id);
+  const mapListingIds = visibleListingIds;
+  const mapListingKey = mapListingIds.join("|");
   const visibleStartRank = sortedListings.length === 0 ? 0 : currentPageStart + 1;
   const visibleEndRank = Math.min(currentPageStart + listingsPerPage, sortedListings.length);
   const decisionContextKey = JSON.stringify({
@@ -1505,28 +1578,56 @@ function App() {
     }
   };
 
-  const movePriority = (targetCategory: ScoreCategoryKey) => {
-    if (!draggedPriority || draggedPriority === targetCategory) {
+  const movePriorityToIndex = (insertIndex: number) => {
+    const activeDraggedPriority = draggedPriorityRef.current;
+
+    if (!activeDraggedPriority) {
       return;
     }
+
     setRankingMode("custom");
 
     setPriorityOrder((currentOrder) => {
-      const draggedIndex = currentOrder.indexOf(draggedPriority);
-      const targetIndex = currentOrder.indexOf(targetCategory);
-      const withoutDragged = currentOrder.filter((category) => category !== draggedPriority);
-      const adjustedTargetIndex = withoutDragged.indexOf(targetCategory);
-      const insertIndex =
-        draggedIndex < targetIndex ? adjustedTargetIndex + 1 : adjustedTargetIndex;
-
-      return [
-        ...withoutDragged.slice(0, insertIndex),
-        draggedPriority,
-        ...withoutDragged.slice(insertIndex),
+      const withoutDragged = currentOrder.filter((category) => category !== activeDraggedPriority);
+      const safeInsertIndex = Math.max(0, Math.min(insertIndex, withoutDragged.length));
+      const nextOrder = [
+        ...withoutDragged.slice(0, safeInsertIndex),
+        activeDraggedPriority,
+        ...withoutDragged.slice(safeInsertIndex),
       ];
+
+      if (nextOrder.every((category, index) => category === currentOrder[index])) {
+        return currentOrder;
+      }
+
+      return nextOrder;
     });
-    setDraggedPriority(null);
-    setDragOverPriority(null);
+  };
+
+  const updatePriorityDragPosition = (clientY: number) => {
+    const activeDraggedPriority = draggedPriorityRef.current;
+    const priorityList = priorityListRef.current;
+
+    if (!activeDraggedPriority || !priorityList) {
+      return;
+    }
+
+    const priorityCards = Array.from(
+      priorityList.querySelectorAll<HTMLElement>("[data-priority-card]")
+    ).filter((card) => card.dataset.priorityCategory !== activeDraggedPriority);
+
+    const hoveredIndex = priorityCards.findIndex((card) => {
+      const cardBox = card.getBoundingClientRect();
+      return clientY < cardBox.top + cardBox.height / 2;
+    });
+    const insertIndex = hoveredIndex === -1 ? priorityCards.length : hoveredIndex;
+    const highlightedCard = priorityCards[Math.min(insertIndex, priorityCards.length - 1)];
+    const highlightedCategory = highlightedCard?.dataset.priorityCategory as
+      | ScoreCategoryKey
+      | undefined;
+
+    setDragOverPriority(highlightedCategory ?? null);
+    movePriorityToIndex(insertIndex);
   };
 
   useEffect(() => {
@@ -1555,6 +1656,17 @@ function App() {
       setCurrentPage(totalPages - 1);
     }
   }, [currentPage, totalPages]);
+
+  useEffect(() => {
+    const nextMapIds =
+      mapListingKey === "" ? [] : mapListingKey.split("|").map((listingId) => Number(listingId));
+
+    setSelectedMapListingId((currentListingId) =>
+      currentListingId !== null && nextMapIds.includes(currentListingId)
+        ? currentListingId
+        : null
+    );
+  }, [mapListingKey]);
 
   useEffect(() => {
     if (activePage === "results") {
@@ -1622,12 +1734,12 @@ function App() {
       setLoadingIds((current) => current.filter((listingId) => listingId !== listing.id));
     }
   }
-  if (loading) return <p>Loading listings...</p>;
+  if (loading && listings.length === 0) return <p>Loading listings...</p>;
   if (error) return <p>{error}</p>;
   return (
     <main className={`app-shell ${activePage === "home" ? "is-home" : "is-flow"}`}>
       <header className="app-header">
-        <p className="eyebrow">Intern housing helper</p>
+        <p className="eyebrow">AI-assisted</p>
         <h1>
           Intern <span className="title-keep">Housing Finder</span>
         </h1>
@@ -1988,7 +2100,21 @@ function App() {
             Drag your top priorities upward. This changes the match scores. You
             can also skip and just browse.
           </p>
-          <div className="priority-list" aria-label="Drag to reorder ranking priorities">
+          <div
+            aria-label="Drag to reorder ranking priorities"
+            className="priority-list"
+            onDragOver={(event) => {
+              event.preventDefault();
+              updatePriorityDragPosition(event.clientY);
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              draggedPriorityRef.current = null;
+              setDraggedPriority(null);
+              setDragOverPriority(null);
+            }}
+            ref={priorityListRef}
+          >
             {priorityOrder.map((category, index) => {
               const categoryInfo = scoreCategories[category];
 
@@ -1997,31 +2123,25 @@ function App() {
                   className={`priority-card ${draggedPriority === category ? "is-dragging" : ""} ${
                     dragOverPriority === category ? "is-drag-over" : ""
                   }`}
+                  data-priority-card="true"
+                  data-priority-category={category}
                   draggable
                   key={category}
                   onDragStart={(event) => {
                     event.dataTransfer.effectAllowed = "move";
-                    const dragPreview = event.currentTarget.cloneNode(true) as HTMLElement;
-                    dragPreview.classList.add("priority-drag-preview");
-                    document.body.appendChild(dragPreview);
-                    event.dataTransfer.setDragImage(dragPreview, 24, 24);
-                    window.setTimeout(() => dragPreview.remove(), 0);
+                    const blankDragImage = document.createElement("div");
+                    blankDragImage.className = "priority-blank-drag-image";
+                    document.body.appendChild(blankDragImage);
+                    event.dataTransfer.setDragImage(blankDragImage, 0, 0);
+                    window.setTimeout(() => blankDragImage.remove(), 0);
+                    draggedPriorityRef.current = category;
                     setDraggedPriority(category);
                   }}
                   onDragEnd={() => {
+                    draggedPriorityRef.current = null;
                     setDraggedPriority(null);
                     setDragOverPriority(null);
                   }}
-                  onDragOver={(event) => {
-                    event.preventDefault();
-                    setDragOverPriority(category);
-                  }}
-                  onDragLeave={() => {
-                    if (dragOverPriority === category) {
-                      setDragOverPriority(null);
-                    }
-                  }}
-                  onDrop={() => movePriority(category)}
                 >
                   <span className="priority-rank">#{index + 1}</span>
                   <div>
@@ -2070,7 +2190,7 @@ function App() {
       {activePage === "results" && sortedListings.length > 0 && (
         <ListingsMap
           listings={sortedListings}
-          highlightedListingIds={visibleListingIds}
+          mapListingIds={mapListingIds}
           selectedListingId={selectedMapListingId}
           commuteTarget={selectedCommuteTarget}
           commuteTargetDisplayName={internshipDisplayName}
@@ -2126,6 +2246,9 @@ function App() {
           cards shown below.
           {rankingMode === "skipped" && " Since ranking was skipped, the list is shuffled for browsing."}
         </p>
+        {commuteFallbackMessage && (
+          <p className="results-notice">{commuteFallbackMessage}</p>
+        )}
         {sortedListings.length > 0 ? (
           <ListingMetricChart
             listings={sortedListings}
@@ -2136,11 +2259,10 @@ function App() {
           />
         ) : (
           <div className="empty-state">
-            <p className="eyebrow">No matches yet</p>
-            <p>
-              Nothing matches those filters yet. Go back and loosen one thing
-              to see more options.
+            <p className="eyebrow">
+              {noListingsLoadedForArea ? "No nearby listings loaded" : "No matches yet"}
             </p>
+            <p>{emptyResultsCopy}</p>
           </div>
         )}
       </section>
@@ -2149,7 +2271,10 @@ function App() {
         <div className="results-header">
           <div>
             <p className="eyebrow">Step 4: Results</p>
-            <h2>{filteredListings.length} places found</h2>
+            <h2>
+              {filteredListings.length}{" "}
+              {isShowingCommuteFallback ? "closest places found" : "places found"}
+            </h2>
           </div>
         </div>
 
@@ -2211,10 +2336,13 @@ function App() {
           </>
         ) : (
           <div className="empty-state">
-            <p className="eyebrow">Nothing to compare yet</p>
+            <p className="eyebrow">
+              {noListingsLoadedForArea ? "No nearby listings loaded" : "Nothing to compare yet"}
+            </p>
             <p>
-              Your filters are too tight right now. Try a higher budget, a
-              longer commute, or fewer must-haves.
+              {noListingsLoadedForArea
+                ? emptyResultsCopy
+                : "Your filters are too tight right now. Try a higher budget, a longer commute, or fewer must-haves."}
             </p>
           </div>
         )}

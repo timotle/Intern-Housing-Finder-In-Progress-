@@ -6,7 +6,12 @@ export default async function handler(request, response) {
   try {
     const listings = await getHousingListings({
       query: request.query?.query,
+      latitude: request.query?.latitude,
+      longitude: request.query?.longitude,
+      targetLabel: request.query?.targetLabel,
+      targetCity: request.query?.targetCity,
       maxPlaces: request.query?.maxPlaces,
+      maxListings: request.query?.maxListings,
     });
     return response.status(200).json(listings);
   } catch (error) {
@@ -22,7 +27,12 @@ export async function GET(request) {
     const url = new URL(request.url);
     const listings = await getHousingListings({
       query: url.searchParams.get("query") || undefined,
+      latitude: url.searchParams.get("latitude") || undefined,
+      longitude: url.searchParams.get("longitude") || undefined,
+      targetLabel: url.searchParams.get("targetLabel") || undefined,
+      targetCity: url.searchParams.get("targetCity") || undefined,
       maxPlaces: url.searchParams.get("maxPlaces") || undefined,
+      maxListings: url.searchParams.get("maxListings") || undefined,
     });
     return Response.json(listings);
   } catch (error) {

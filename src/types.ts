@@ -27,6 +27,9 @@ export type Listing = {
     rating?: number;
     userRatingCount?: number;
     websiteUri?: string;
+    websiteLabel?: string;
+    listingSearchUri?: string;
+    listingLinkType?: "direct" | "source" | "search";
     latitude?: number;
     longitude?: number;
     dataSource?: "rentcast" | "sample";

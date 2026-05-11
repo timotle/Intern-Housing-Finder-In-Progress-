@@ -31,6 +31,17 @@ function ListingCard({
         listing.bathrooms !== undefined && listing.bathrooms !== null
             ? `${listing.bathrooms}`
             : "Not listed";
+    const listingCheckUrl =
+        listing.websiteUri ||
+        listing.listingSearchUri ||
+        `https://www.google.com/search?q=${encodeURIComponent(
+            `${listing.address || listing.name} ${listing.location} rental listing`
+        )}`;
+    const listingCheckLabel = listing.websiteLabel || "Check availability";
+    const listingLinkNote =
+        listing.listingLinkType === "search" || (!listing.websiteUri && listing.listingSearchUri)
+            ? "Opens an address lookup when the listing site is not included."
+            : "";
 
     return(
         <article
@@ -83,13 +94,12 @@ function ListingCard({
                     {listing.laundry && <span>Laundry</span>}
                     {listing.parking && <span>Parking</span>}
                 </div>
-                {listing.websiteUri && (
-                    <div className="listing-links">
-                        <a href={listing.websiteUri} target="_blank" rel="noreferrer">
-                            Website
-                        </a>
-                    </div>
-                )}
+                <div className="listing-links">
+                    <a href={listingCheckUrl} target="_blank" rel="noreferrer">
+                        {listingCheckLabel}
+                    </a>
+                </div>
+                {listingLinkNote && <p className="listing-link-note">{listingLinkNote}</p>}
                 <button disabled={isLoading} onClick={() => onExplainMatch(listing)}>
                     {isLoading
                         ? "Checking..."
