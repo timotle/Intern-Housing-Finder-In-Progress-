@@ -49,7 +49,7 @@ function ListingCard({
                 <p className="location-line">{listing.location}</p>
                 {!hideScore && listing.matchScore !== undefined && (
                     <p className="score-note">
-                        Scored from price, commute, lease, bedrooms, space, baths, and amenities.
+                        Based on your commute, budget, lease, space, baths, and amenities.
                     </p>
                 )}
                 <dl className="listing-facts">
@@ -92,7 +92,7 @@ function ListingCard({
                 )}
                 <button disabled={isLoading} onClick={() => onExplainMatch(listing)}>
                     {isLoading
-                        ? "Generating..."
+                        ? "Checking..."
                         : isExplanationOpen
                           ? "Close explanation"
                           : "Explain tradeoffs"}
@@ -100,9 +100,9 @@ function ListingCard({
             </div>
             {isExplanationOpen && (
                 <div className="explanation-card">
-                    <p className="eyebrow">AI explanation</p>
+                    <p className="eyebrow">AI tradeoff check</p>
                     {isLoading ? (
-                        <p className="loading-note">Generating explanation...</p>
+                        <p className="loading-note">Checking the tradeoffs...</p>
                     ) : (
                         <pre>{explanation}</pre>
                     )}

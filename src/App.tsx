@@ -452,6 +452,23 @@ function findTargetFromInput(input: string) {
   );
 }
 
+function isLikelyPartialAddress(input: string) {
+  const normalizedInput = input.trim().toLowerCase();
+
+  if (!/^\d/.test(normalizedInput)) {
+    return false;
+  }
+
+  const hasStreetWord =
+    /\b(st|street|ave|avenue|rd|road|blvd|boulevard|way|dr|drive|ln|lane|pl|place|ct|court)\b/.test(
+      normalizedInput
+    );
+  const hasCityOrState =
+    /\b(seattle|bellevue|redmond|kirkland|renton|wa|washington)\b/.test(normalizedInput);
+
+  return normalizedInput.length < 12 || !hasStreetWord || !hasCityOrState;
+}
+
 function getPriorityStrength(
   category: ScoreCategoryKey,
   priorityOrder: ScoreCategoryKey[],
@@ -1007,6 +1024,7 @@ function ListingsMap({
   highlightedListingIds,
   selectedListingId,
   commuteTarget,
+  commuteTargetDisplayName,
   rankLabel,
   onListingSelect,
 }: {
@@ -1014,6 +1032,7 @@ function ListingsMap({
   highlightedListingIds: number[];
   selectedListingId: number | null;
   commuteTarget: CommuteTarget;
+  commuteTargetDisplayName: string;
   rankLabel: string;
   onListingSelect: (listingId: number) => void;
 }) {
@@ -1063,10 +1082,10 @@ function ListingsMap({
     L.marker(targetLatLng, {
       icon: createCommuteTargetIcon(),
       keyboard: true,
-      title: commuteTarget.label,
+      title: commuteTargetDisplayName,
     })
       .bindPopup(
-        `<strong>${escapeMapText(commuteTarget.label)}</strong><br />Internship location`
+        `<strong>${escapeMapText(commuteTargetDisplayName)}</strong><br />Internship location`
       )
       .addTo(markerLayer);
 
@@ -1109,6 +1128,7 @@ function ListingsMap({
     }, 0);
   }, [
     commuteTarget,
+    commuteTargetDisplayName,
     highlightedListingIds,
     listings,
     onListingSelect,
@@ -1120,18 +1140,18 @@ function ListingsMap({
     <section className="map-panel">
       <div className="map-header">
         <div>
-          <p className="eyebrow">Map view</p>
-          <h2>See listings near your commute</h2>
+          <p className="eyebrow">Map</p>
+          <h2>See what is nearby</h2>
         </div>
         <div className="map-legend" aria-label="Map marker legend">
           <span className="legend-target">Internship</span>
           <span className="legend-current">Current 4</span>
-          <span className="legend-other">Other listings</span>
+          <span className="legend-other">Other places</span>
         </div>
       </div>
       <p className="panel-copy">
-        Yellow pins match the 4 listings shown below. Click any pin to jump to
-        that listing.
+        Pink pins are the 4 cards shown below. Click any pin to jump to that
+        place.
       </p>
       <div
         className="listing-map"
@@ -1156,6 +1176,7 @@ function App() {
   ];
   const [activePage, setActivePage] = useState<PageKey>("home");
   const [selectedCommuteTargetId, setSelectedCommuteTargetId] = useState("uw");
+  const [internshipNameInput, setInternshipNameInput] = useState("");
   const [internshipLocationInput, setInternshipLocationInput] = useState("");
   const [resolvedCommuteTarget, setResolvedCommuteTarget] = useState<CommuteTarget | null>(null);
   const [commuteResolutionStatus, setCommuteResolutionStatus] =
@@ -1181,6 +1202,8 @@ function App() {
   const [dismissedTastePrompt, setDismissedTastePrompt] = useState(false);
   const [lastProfileTitle, setLastProfileTitle] = useState("");
   const [showProfileUpdatedPrompt, setShowProfileUpdatedPrompt] = useState(false);
+  const [isResultsIntroLoading, setIsResultsIntroLoading] = useState(false);
+  const resultsIntroTimeoutRef = useRef<number | null>(null);
   const [interactions, setInteractions] = useState<InteractionSignals>({
     explanationClicks: [],
     resultPageViews: 0,
@@ -1198,10 +1221,17 @@ function App() {
     commuteTargets.find((target) => target.id === selectedCommuteTargetId) ||
     commuteTargets[0];
   const selectedCommuteTarget = resolvedCommuteTarget || presetCommuteTarget;
-  const commuteTargetName =
-    internshipLocationInput.trim() === ""
-      ? selectedCommuteTarget.label
-      : internshipLocationInput.trim();
+  const commuteLocationQuery = internshipLocationInput.trim();
+  const internshipDisplayName =
+    internshipNameInput.trim() === "" ? selectedCommuteTarget.label : internshipNameInput.trim();
+  const commuteTargetName = internshipDisplayName;
+  const hasTypedCommuteLocation = commuteLocationQuery !== "";
+  const hasPartialCommuteAddress = isLikelyPartialAddress(internshipLocationInput);
+  const locationActionLabel = hasPartialCommuteAddress
+    ? "Add more detail"
+    : hasTypedCommuteLocation
+      ? "Check & Continue"
+      : "Save & Continue";
   const userPreferences: UserPreferences = {
     commuteTarget: commuteTargetName,
     commuteArea: selectedCommuteTarget.label,
@@ -1234,6 +1264,18 @@ function App() {
       }
     };
     fetchListings();
+  }, []);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [activePage]);
+
+  useEffect(() => {
+    return () => {
+      if (resultsIntroTimeoutRef.current !== null) {
+        window.clearTimeout(resultsIntroTimeoutRef.current);
+      }
+    };
   }, []);
 
   const listingsWithCommute = listings.map((listing) => ({
@@ -1325,9 +1367,9 @@ function App() {
     userPreferences,
   });
   const stepPages: Array<{ key: StepPageKey; label: string }> = [
-    { key: "location", label: "Location" },
-    { key: "preferences", label: "Preferences" },
-    { key: "ranking", label: "Ranking Rules" },
+    { key: "location", label: "Commute" },
+    { key: "preferences", label: "Must-haves" },
+    { key: "ranking", label: "Ranking" },
     { key: "results", label: "Results" },
   ];
   const currentStepIndex = stepPages.findIndex((page) => page.key === activePage);
@@ -1392,6 +1434,34 @@ function App() {
     }, 0);
   };
 
+  const openResultsWithIntro = ({
+    skipRanking = false,
+  }: {
+    skipRanking?: boolean;
+  } = {}) => {
+    resetHousingStyleProgress();
+    setCurrentPage(0);
+    setSelectedMapListingId(null);
+
+    if (skipRanking) {
+      setRankingMode("skipped");
+      setChartMetric("price");
+    } else {
+      setRankingMode((current) => (current === "skipped" ? "default" : current));
+    }
+
+    if (resultsIntroTimeoutRef.current !== null) {
+      window.clearTimeout(resultsIntroTimeoutRef.current);
+    }
+
+    setIsResultsIntroLoading(true);
+    resultsIntroTimeoutRef.current = window.setTimeout(() => {
+      setActivePage("results");
+      setIsResultsIntroLoading(false);
+      resultsIntroTimeoutRef.current = null;
+    }, 1550);
+  };
+
   const saveLocationAndContinue = async () => {
     const typedLocation = internshipLocationInput.trim();
 
@@ -1399,6 +1469,14 @@ function App() {
       resetCommuteResolution();
       setCurrentPage(0);
       setActivePage("preferences");
+      return;
+    }
+
+    if (isLikelyPartialAddress(typedLocation)) {
+      setCommuteResolutionStatus("fallback");
+      setCommuteResolutionMessage(
+        "This looks like a partial address. Add the full street and city, or clear it and choose a quick area."
+      );
       return;
     }
 
@@ -1547,20 +1625,20 @@ function App() {
   if (loading) return <p>Loading listings...</p>;
   if (error) return <p>{error}</p>;
   return (
-    <main className="app-shell">
+    <main className={`app-shell ${activePage === "home" ? "is-home" : "is-flow"}`}>
       <header className="app-header">
-        <p className="eyebrow">AI-assisted decision support</p>
+        <p className="eyebrow">Intern housing helper</p>
         <h1>
           Intern <span className="title-keep">Housing Finder</span>
         </h1>
         <p className="hero-copy">
-          Compare messy housing options with structured ranking rules, match
-          scores, and LLM-generated explanations that call out tradeoffs.
+          Find real Seattle rentals that fit your commute, budget, and living
+          style without opening a million tabs.
         </p>
         <div className="hero-points" aria-label="Project strengths">
-          <span>Ranked recommendations</span>
-          <span>Transparent tradeoffs</span>
-          <span>Student-friendly explanations</span>
+          <span>Real rentals</span>
+          <span>Commute estimates</span>
+          <span>AI tradeoff help</span>
         </div>
         {activePage !== "home" && (
           <nav className="step-nav" aria-label="Current step">
@@ -1588,84 +1666,106 @@ function App() {
       </header>
 
       <section className={`page-section home-page ${activePage === "home" ? "" : "is-hidden"}`}>
+        <div className="start-panel">
+          <button onClick={() => setActivePage("location")} type="button">
+            Start finding housing
+          </button>
+        </div>
         <div className="home-grid">
           <article className="home-card">
             <p className="eyebrow">Step 1</p>
-            <h3>Add internship location</h3>
+            <h3>Add your commute</h3>
             <p>
-              Pick where you are commuting to so the housing options can update
-              around your actual internship area.
+              Tell us where your internship is so the commute numbers make
+              sense.
             </p>
           </article>
           <article className="home-card">
             <p className="eyebrow">Step 2</p>
-            <h3>Set preferences</h3>
+            <h3>Set dealbreakers</h3>
             <p>
-              Choose budget, commute, lease, bedrooms, space, baths, and
-              must-have amenities.
+              Add the budget, space, lease, and amenities you actually care
+              about.
             </p>
           </article>
           <article className="home-card">
             <p className="eyebrow">Step 3</p>
-            <h3>Rank priorities</h3>
+            <h3>Pick priorities</h3>
             <p>
-              Drag the priority cards in order from most important to least
-              important.
+              Drag what matters most to the top so the app knows your vibe.
             </p>
           </article>
           <article className="home-card">
             <p className="eyebrow">Step 4</p>
-            <h3>Compare results</h3>
+            <h3>See your matches</h3>
             <p>
-              See your filtered listings, compare them visually, and review the
-              options four at a time.
+              Compare listings, map pins, charts, and AI tradeoffs in one
+              place.
             </p>
           </article>
-        </div>
-        <div className="start-panel">
-          <button onClick={() => setActivePage("location")} type="button">
-            Start
-          </button>
         </div>
       </section>
 
       <section className={`page-section decision-panel location-page ${activePage === "location" ? "" : "is-hidden"}`}>
         <div className="panel-heading">
-          <p className="eyebrow">Commute target</p>
+          <p className="eyebrow">Step 1: Commute</p>
           <h2>Where is your internship?</h2>
         </div>
         <p className="panel-copy">
-          Type your company or choose the closest area. This updates the commute
-          estimate for every listing before the app filters and ranks them.
+          Name your internship for the map. Then choose how we estimate your
+          commute: type a full address or pick a nearby area.
         </p>
 
-        <label className="location-input-label">
-          Company, school, or internship area
+        <div className="location-input-label">
+          <label htmlFor="internship-name-input">Internship or company name</label>
           <input
+            id="internship-name-input"
             type="text"
-            placeholder="Amazon SLU, Microsoft Redmond, Downtown Seattle..."
+            placeholder="Example: Amazon internship, UW lab, Microsoft"
+            value={internshipNameInput}
+            onChange={(event) => setInternshipNameInput(event.target.value)}
+          />
+          <span className="location-helper">
+            This name shows on your map marker.
+          </span>
+        </div>
+
+        <div className={`location-input-label ${hasPartialCommuteAddress ? "has-warning" : ""}`}>
+          <label htmlFor="commute-location-input">Full address or exact area</label>
+          <input
+            id="commute-location-input"
+            className={hasPartialCommuteAddress ? "is-warning" : ""}
+            type="text"
+            placeholder="Example: 410 Terry Ave N Seattle"
             value={internshipLocationInput}
             onChange={(event) => {
               const nextLocation = event.target.value;
-              const matchedTarget = findTargetFromInput(nextLocation);
               setInternshipLocationInput(nextLocation);
               setResolvedCommuteTarget(null);
               setCommuteResolutionStatus("idle");
               setCommuteResolutionMessage("");
-
-              if (matchedTarget) {
-                setSelectedCommuteTargetId(matchedTarget.id);
-              }
             }}
           />
-        </label>
+          <span className={`location-helper ${hasPartialCommuteAddress ? "is-warning" : ""}`}>
+            {hasPartialCommuteAddress
+              ? "That looks like a partial address. Add the full street and city, like 2412 S Jackson St Seattle."
+              : "Use this for a better commute estimate. Leave it blank if a quick pick is close enough."}
+          </span>
+        </div>
 
+        <div className="location-section-heading">
+          <p className="eyebrow">Nearby areas</p>
+          <p>Pick one if you do not know the exact address yet.</p>
+        </div>
         <div className="location-grid" aria-label="Common commute areas">
           {commuteTargets.map((target) => (
             <button
-              className={`location-card ${selectedCommuteTargetId === target.id ? "is-selected" : ""}`}
+              className={`location-card ${
+                !hasTypedCommuteLocation && selectedCommuteTargetId === target.id ? "is-selected" : ""
+              } ${hasTypedCommuteLocation ? "is-inactive" : ""}`}
               key={target.id}
               onClick={() => {
+                setInternshipLocationInput("");
                 setSelectedCommuteTargetId(target.id);
                 setResolvedCommuteTarget(null);
                 setCommuteResolutionStatus("idle");
@@ -1680,20 +1780,54 @@ function App() {
         </div>
 
         <div className="location-estimate-note">
-          <p className="eyebrow">Current commute estimate</p>
-          <p>
-            {commuteResolutionStatus === "resolving" ? "Matching " : "Using "}
-            <strong>{selectedCommuteTarget.label}</strong>
-            {commuteTargetName !== selectedCommuteTarget.label && (
-              <>
-                {" "}for <strong>{commuteTargetName}</strong>
-              </>
-            )}
-            .
-          </p>
-          {commuteResolutionMessage !== "" && (
-            <p className="location-resolution-message">{commuteResolutionMessage}</p>
+          <p className="eyebrow">Commute target</p>
+          {hasPartialCommuteAddress ? (
+            <p>
+              Add the full street and city so the commute estimate does not
+              guess wrong.
+            </p>
+          ) : (
+            <p>
+              {commuteResolutionStatus === "resolving"
+                ? "Checking "
+                : hasTypedCommuteLocation && commuteResolutionStatus === "idle"
+                  ? "Ready to check "
+                  : "Using "}
+              <strong>{commuteTargetName}</strong>
+              {hasTypedCommuteLocation ? (
+                <>
+                  {" "}at <strong>{commuteLocationQuery}</strong>
+                </>
+              ) : commuteTargetName !== selectedCommuteTarget.label ? (
+                <>
+                  {" "}near <strong>{selectedCommuteTarget.label}</strong>
+                </>
+              ) : null}
+              .
+            </p>
           )}
+          {hasTypedCommuteLocation && !hasPartialCommuteAddress && commuteResolutionStatus === "idle" && (
+            <p className="location-resolution-message">
+              We will use this address when you continue.
+            </p>
+          )}
+          {commuteResolutionMessage !== "" && (
+            <p
+              className={`location-resolution-message ${
+                hasPartialCommuteAddress ? "is-warning" : ""
+              }`}
+            >
+              {commuteResolutionMessage}
+            </p>
+          )}
+        </div>
+
+        <div className="location-product-note">
+          <span>Why it matters</span>
+          <p>
+            Commute can make or break a place, so we check it before showing
+            your matches.
+          </p>
         </div>
 
         <div className="page-actions">
@@ -1708,14 +1842,14 @@ function App() {
             }}
             type="button"
           >
-            Skip this step
+            Skip, use UW
           </button>
           <button
-            disabled={commuteResolutionStatus === "resolving"}
+            disabled={commuteResolutionStatus === "resolving" || hasPartialCommuteAddress}
             onClick={saveLocationAndContinue}
             type="button"
           >
-            {commuteResolutionStatus === "resolving" ? "Matching..." : "Save & Continue"}{" "}
+            {commuteResolutionStatus === "resolving" ? "Matching..." : locationActionLabel}{" "}
             <span aria-hidden="true">&rarr;</span>
           </button>
         </div>
@@ -1723,9 +1857,13 @@ function App() {
 
       <section className={`page-section decision-panel ${activePage === "preferences" ? "" : "is-hidden"}`}>
         <div className="panel-heading">
-          <p className="eyebrow">User preferences</p>
-          <h2>Filter the decision space</h2>
+          <p className="eyebrow">Step 2: Preferences</p>
+          <h2>Choose your must-haves</h2>
         </div>
+        <p className="panel-copy">
+          Only fill out what matters to you. Blank boxes keep more options
+          open.
+        </p>
 
         <div className="filter-grid">
           <label>
@@ -1828,7 +1966,7 @@ function App() {
             }}
             type="button"
           >
-            Skip this step
+            Skip for now
           </button>
           <button
             onClick={() => {
@@ -1843,13 +1981,12 @@ function App() {
 
       <section className={`page-section rules-panel ${activePage === "ranking" ? "" : "is-hidden"}`}>
           <div className="panel-heading">
-            <p className="eyebrow">Personal ranking</p>
-            <h2>Ranking Rules</h2>
+            <p className="eyebrow">Step 3: Priorities</p>
+            <h2>Rank what matters most</h2>
           </div>
           <p className="panel-copy">
-            Drag what matters most to the top. Your order changes the match
-            scores right away, so the list can reflect how you actually make a
-            housing decision.
+            Drag your top priorities upward. This changes the match scores. You
+            can also skip and just browse.
           </p>
           <div className="priority-list" aria-label="Drag to reorder ranking priorities">
             {priorityOrder.map((category, index) => {
@@ -1901,36 +2038,29 @@ function App() {
           <div className="ai-note">
             <p className="eyebrow">Your ranking</p>
             <p>
-              Most important: <strong>{scoreCategories[priorityOrder[0]].label}</strong>.
-              Least important:{" "}
+              Top priority: <strong>{scoreCategories[priorityOrder[0]].label}</strong>.
+              Lowest priority:{" "}
               <strong>{scoreCategories[priorityOrder[priorityOrder.length - 1]].label}</strong>.
-              Ready to move to the next step!
+              Ready when you are.
             </p>
           </div>
           <div className="page-actions">
             <button
               className="secondary-button"
               onClick={() => {
-                resetHousingStyleProgress();
-                setCurrentPage(0);
-                setRankingMode("skipped");
-                setChartMetric("price");
-                setActivePage("results");
+                openResultsWithIntro({ skipRanking: true });
               }}
               type="button"
             >
-              Skip this step
+              Skip for now
             </button>
             <button
               onClick={() => {
-                resetHousingStyleProgress();
-                setCurrentPage(0);
-                setRankingMode((current) => (current === "skipped" ? "default" : current));
-                setActivePage("results");
+                openResultsWithIntro();
               }}
               type="button"
             >
-              Save & Continue <span aria-hidden="true">&rarr;</span>
+              Save & See Results <span aria-hidden="true">&rarr;</span>
             </button>
           </div>
       </section>
@@ -1943,6 +2073,7 @@ function App() {
           highlightedListingIds={visibleListingIds}
           selectedListingId={selectedMapListingId}
           commuteTarget={selectedCommuteTarget}
+          commuteTargetDisplayName={internshipDisplayName}
           rankLabel={rankingMode === "skipped" ? "Listing" : "Rank"}
           onListingSelect={selectListingFromMap}
         />
@@ -1950,8 +2081,8 @@ function App() {
       <section className="chart-panel">
         <div className="chart-header">
           <div>
-            <p className="eyebrow">Visual comparison</p>
-            <h2>Compare filtered listings</h2>
+            <p className="eyebrow">Compare</p>
+            <h2>Compare your options</h2>
           </div>
           <div className="chart-controls">
             <label>
@@ -1991,9 +2122,9 @@ function App() {
           </div>
         </div>
         <p className="panel-copy">
-          The graph shows every listing that passes your filters. The four
-          listings currently shown below are highlighted.
-          {rankingMode === "skipped" && " Since ranking was skipped, the order is random for browsing."}
+          This chart includes every listing that matches. Pink ones are the 4
+          cards shown below.
+          {rankingMode === "skipped" && " Since ranking was skipped, the list is shuffled for browsing."}
         </p>
         {sortedListings.length > 0 ? (
           <ListingMetricChart
@@ -2007,8 +2138,8 @@ function App() {
           <div className="empty-state">
             <p className="eyebrow">No matches yet</p>
             <p>
-              No listings match those filters right now. Go back and loosen one
-              preference to bring more options back.
+              Nothing matches those filters yet. Go back and loosen one thing
+              to see more options.
             </p>
           </div>
         )}
@@ -2017,8 +2148,8 @@ function App() {
       <section className="results-section">
         <div className="results-header">
           <div>
-            <p className="eyebrow">{rankingMode === "skipped" ? "Browsing output" : "Ranked output"}</p>
-            <h2>{filteredListings.length} listing(s) found</h2>
+            <p className="eyebrow">Step 4: Results</p>
+            <h2>{filteredListings.length} places found</h2>
           </div>
         </div>
 
@@ -2041,7 +2172,7 @@ function App() {
                 <span aria-hidden="true">&larr;</span>
               </button>
               <p>
-                Showing {rankingMode === "skipped" ? "listings" : "ranks"}{" "}
+                Showing {rankingMode === "skipped" ? "places" : "matches"}{" "}
                 <strong>{visibleStartRank}-{visibleEndRank}</strong> of{" "}
                 <strong>{sortedListings.length}</strong>
               </p>
@@ -2082,19 +2213,46 @@ function App() {
           <div className="empty-state">
             <p className="eyebrow">Nothing to compare yet</p>
             <p>
-              The filters are too tight for the current listings. Head back and
-              try a higher budget, a longer commute, or fewer must-haves.
+              Your filters are too tight right now. Try a higher budget, a
+              longer commute, or fewer must-haves.
             </p>
           </div>
         )}
       </section>
       </div>
       </section>
+      {isResultsIntroLoading && (
+        <div className="results-scan-overlay" role="status" aria-live="polite">
+          <div className="results-scan-scene">
+            <span className="loader-shape loader-shape-one" />
+            <span className="loader-shape loader-shape-two" />
+            <span className="loader-shape loader-shape-three" />
+            <span className="loader-shape loader-shape-four" />
+            <span className="loader-shape loader-shape-five" />
+            <div className="pixel-walk-stage" aria-hidden="true">
+              <div className="cat-gif-frame">
+                <img
+                  className="cat-loader-gif"
+                  src="/cat-loader.gif"
+                  alt=""
+                  draggable="false"
+                />
+              </div>
+              <span className="cat-ground-shadow" />
+              <span className="paw-step paw-step-one" />
+              <span className="paw-step paw-step-two" />
+              <span className="paw-step paw-step-three" />
+              <span className="paw-step paw-step-four" />
+            </div>
+            <p className="loader-caption">Finding places that fit your internship life...</p>
+          </div>
+        </div>
+      )}
       {isTasteProfileReady && !dismissedTastePrompt && !showTasteProfile && (
         <div className="taste-profile-toast" role="status">
           <div>
-            <p className="eyebrow">Housing style ready</p>
-            <p>Want to see what kind of housing fit you seem to prefer?</p>
+            <p className="eyebrow">Housing style unlocked</p>
+            <p>Want to see what kind of place fits your taste?</p>
           </div>
           <div className="toast-actions">
             <button
@@ -2120,7 +2278,7 @@ function App() {
         <div className="taste-profile-toast profile-update-toast" role="status">
           <div>
             <p className="eyebrow">Housing style updated</p>
-            <p>Your taste profile changed as you compared more listings.</p>
+            <p>Your style changed as you checked more places.</p>
           </div>
           <div className="toast-actions">
             <button
@@ -2157,7 +2315,7 @@ function App() {
             <h2>{tasteProfile.title}</h2>
             <p>{tasteProfile.summary}</p>
             <div className="profile-highlight">
-              <strong>Best fit style:</strong> {tasteProfile.fitTip}
+              <strong>Best fit:</strong> {tasteProfile.fitTip}
             </div>
             <p className="profile-suggestion">{tasteProfile.smartSuggestion}</p>
           </div>
