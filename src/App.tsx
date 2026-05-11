@@ -367,18 +367,99 @@ const profilePickReasons: Record<TasteProfileLabel, string> = {
   bathroom_planner: "it gives you a stronger bathroom setup to compare next",
 };
 
+type NumericPreferenceConfig = {
+  min: number;
+  max: number;
+  allowDecimal?: boolean;
+};
+
+const preferenceNumberRules = {
+  maxPrice: { min: 1, max: 10000 },
+  maxCommuteTime: { min: 1, max: 180 },
+  leaseTerm: { min: 1, max: 36 },
+  minBedrooms: { min: 0, max: 8 },
+  minSquareFeet: { min: 1, max: 5000 },
+  minBaths: { min: 0.5, max: 6, allowDecimal: true },
+} satisfies Record<string, NumericPreferenceConfig>;
+
+function cleanNumericPreference(value: string, config: NumericPreferenceConfig) {
+  const trimmedValue = value.trim().replace(/,/g, "");
+
+  if (trimmedValue === "") {
+    return "";
+  }
+
+  const numericValue = Number(trimmedValue);
+
+  if (!Number.isFinite(numericValue) || numericValue < config.min) {
+    return "";
+  }
+
+  const clampedValue = Math.min(numericValue, config.max);
+  const cleanedValue = config.allowDecimal
+    ? Math.round(clampedValue * 2) / 2
+    : Math.floor(clampedValue);
+
+  return String(cleanedValue).replace(/\.0$/, "");
+}
+
+function stageNumericPreference(value: string, config: NumericPreferenceConfig) {
+  const trimmedValue = value.trim().replace(/,/g, "");
+
+  if (trimmedValue === "" || trimmedValue.startsWith("-")) {
+    return "";
+  }
+
+  const numericValue = Number(trimmedValue);
+
+  if (!Number.isFinite(numericValue)) {
+    return "";
+  }
+
+  if (numericValue > config.max) {
+    return String(config.max);
+  }
+
+  if (!config.allowDecimal && numericValue < config.min) {
+    return "";
+  }
+
+  return config.allowDecimal ? trimmedValue : String(Math.floor(numericValue));
+}
+
+function getPreferenceNumber(value: string, config?: NumericPreferenceConfig) {
+  const numericValue = Number(value);
+  if (value === "" || !Number.isFinite(numericValue)) {
+    return null;
+  }
+
+  if (config && (numericValue < config.min || numericValue > config.max)) {
+    return null;
+  }
+
+  return numericValue;
+}
+
 function getListingNumber(
   listing: Listing,
   key: "price" | "commuteTime" | "leaseTerm" | "numBedroom" | "squareFootage" | "bathrooms"
 ) {
-  return Number(listing[key]) || 0;
+  const value = Number(listing[key]);
+  return Number.isFinite(value) ? Math.max(0, value) : 0;
 }
 
 function getRange(
   listings: Listing[],
   key: "price" | "commuteTime" | "leaseTerm" | "numBedroom" | "squareFootage" | "bathrooms"
 ) {
-  const values = listings.map((listing) => getListingNumber(listing, key));
+  const values = listings
+    .map((listing) => getListingNumber(listing, key))
+    .filter(Number.isFinite);
+
+  if (values.length === 0) {
+    return { min: 0, max: 0 };
+  }
+
   return {
     min: Math.min(...values),
     max: Math.max(...values),
@@ -386,17 +467,27 @@ function getRange(
 }
 
 function scoreLowerIsBetter(value: number, min: number, max: number, maxPoints: number) {
-  if (max === min) {
+  if (![value, min, max, maxPoints].every(Number.isFinite) || maxPoints <= 0) {
+    return 0;
+  }
+
+  if (max <= min) {
     return maxPoints;
   }
-  return ((max - value) / (max - min)) * maxPoints;
+
+  return Math.max(0, Math.min(maxPoints, ((max - value) / (max - min)) * maxPoints));
 }
 
 function scoreHigherIsBetter(value: number, min: number, max: number, maxPoints: number) {
-  if (max === min) {
+  if (![value, min, max, maxPoints].every(Number.isFinite) || maxPoints <= 0) {
+    return 0;
+  }
+
+  if (max <= min) {
     return maxPoints;
   }
-  return ((value - min) / (max - min)) * maxPoints;
+
+  return Math.max(0, Math.min(maxPoints, ((value - min) / (max - min)) * maxPoints));
 }
 
 function getMedianValue(values: number[]) {
@@ -449,6 +540,14 @@ function getTargetCity(target: CommuteTarget) {
 
   if (targetText.includes("redmond")) {
     return "Redmond";
+  }
+
+  if (targetText.includes("kirkland")) {
+    return "Kirkland";
+  }
+
+  if (targetText.includes("renton")) {
+    return "Renton";
   }
 
   return "Seattle";
@@ -610,10 +709,15 @@ function calculateScoreBreakdown(
     }
 
     if (category === "lease") {
-      if (preferences.leaseTerm !== "") {
-        const leaseDifference = Math.abs(listing.leaseTerm - Number(preferences.leaseTerm));
+      const preferredLeaseTerm = getPreferenceNumber(
+        preferences.leaseTerm,
+        preferenceNumberRules.leaseTerm
+      );
+
+      if (preferredLeaseTerm !== null) {
+        const leaseDifference = Math.abs(listing.leaseTerm - preferredLeaseTerm);
         basePoints = Math.max(0, categoryInfo.maxPoints - leaseDifference * 4);
-        explanation = `${listing.leaseTerm} month lease compared with your ${preferences.leaseTerm} month target`;
+        explanation = `${listing.leaseTerm} month lease compared with your ${preferredLeaseTerm} month target`;
       } else {
         basePoints = scoreLowerIsBetter(
           listing.leaseTerm,
@@ -637,15 +741,20 @@ function calculateScoreBreakdown(
 
     if (category === "squareFeet") {
       const squareFootage = getListingNumber(listing, "squareFootage");
-      if (preferences.minSquareFeet !== "") {
+      const preferredSquareFeet = getPreferenceNumber(
+        preferences.minSquareFeet,
+        preferenceNumberRules.minSquareFeet
+      );
+
+      if (preferredSquareFeet !== null) {
         basePoints =
-          squareFootage >= Number(preferences.minSquareFeet)
+          squareFootage >= preferredSquareFeet
             ? categoryInfo.maxPoints
             : Math.max(
                 0,
-                (squareFootage / Number(preferences.minSquareFeet)) * categoryInfo.maxPoints
+                (squareFootage / preferredSquareFeet) * categoryInfo.maxPoints
               );
-        explanation = `${squareFootage} square feet compared with your ${preferences.minSquareFeet} square foot target`;
+        explanation = `${squareFootage} square feet compared with your ${preferredSquareFeet} square foot target`;
       } else {
         basePoints = scoreHigherIsBetter(
           squareFootage,
@@ -659,12 +768,17 @@ function calculateScoreBreakdown(
 
     if (category === "baths") {
       const bathrooms = getListingNumber(listing, "bathrooms");
-      if (preferences.minBaths !== "") {
+      const preferredBaths = getPreferenceNumber(
+        preferences.minBaths,
+        preferenceNumberRules.minBaths
+      );
+
+      if (preferredBaths !== null) {
         basePoints =
-          bathrooms >= Number(preferences.minBaths)
+          bathrooms >= preferredBaths
             ? categoryInfo.maxPoints
-            : Math.max(0, (bathrooms / Number(preferences.minBaths)) * categoryInfo.maxPoints);
-        explanation = `${bathrooms} bathroom(s) compared with your ${preferences.minBaths} bathroom target`;
+            : Math.max(0, (bathrooms / preferredBaths) * categoryInfo.maxPoints);
+        explanation = `${bathrooms} bathroom(s) compared with your ${preferredBaths} bathroom target`;
       } else {
         basePoints = scoreHigherIsBetter(
           bathrooms,
@@ -1026,7 +1140,7 @@ function createListingMapIcon({
 function createCommuteTargetIcon() {
   return L.divIcon({
     className: "map-marker-shell",
-    html: `<span class="map-marker map-marker-target"><span class="map-marker-target-star">★</span></span>`,
+    html: `<span class="map-marker map-marker-target"><span class="map-marker-target-star">&#9733;</span></span>`,
     iconSize: [42, 42],
     iconAnchor: [21, 21],
     popupAnchor: [0, -22],
@@ -1330,28 +1444,43 @@ function App() {
     commuteTargetLabel: commuteTargetName,
   }));
 
-  const hasCommuteLimit = maxCommuteTime !== "";
+  const maxPriceValue = getPreferenceNumber(maxPrice, preferenceNumberRules.maxPrice);
+  const maxCommuteTimeValue = getPreferenceNumber(
+    maxCommuteTime,
+    preferenceNumberRules.maxCommuteTime
+  );
+  const leaseTermValue = getPreferenceNumber(leaseTerm, preferenceNumberRules.leaseTerm);
+  const minBedroomsValue = getPreferenceNumber(minBedrooms, preferenceNumberRules.minBedrooms);
+  const minSquareFeetValue = getPreferenceNumber(
+    minSquareFeet,
+    preferenceNumberRules.minSquareFeet
+  );
+  const minBathsValue = getPreferenceNumber(minBaths, preferenceNumberRules.minBaths);
+  const hasCommuteLimit = maxCommuteTimeValue !== null;
   const listingMatchesFilters = (
     listing: Listing,
     options: { includeCommute: boolean } = { includeCommute: true }
   ) => {
     const matchesPrice =
-      maxPrice === "" || listing.price <= Number(maxPrice);
+      maxPriceValue === null || listing.price <= maxPriceValue;
 
     const matchesCommuteTime =
-      !options.includeCommute || maxCommuteTime === "" || listing.commuteTime <= Number(maxCommuteTime);
+      !options.includeCommute ||
+      maxCommuteTimeValue === null ||
+      listing.commuteTime <= maxCommuteTimeValue;
 
     const matchesLeaseTerm =
-      leaseTerm === "" || listing.leaseTerm === Number(leaseTerm);
+      leaseTermValue === null || listing.leaseTerm === leaseTermValue;
 
     const matchesBedrooms =
-      minBedrooms === "" || listing.numBedroom >= Number(minBedrooms);
+      minBedroomsValue === null || listing.numBedroom >= minBedroomsValue;
 
     const matchesSquareFeet =
-      minSquareFeet === "" || getListingNumber(listing, "squareFootage") >= Number(minSquareFeet);
+      minSquareFeetValue === null ||
+      getListingNumber(listing, "squareFootage") >= minSquareFeetValue;
 
     const matchesBaths =
-      minBaths === "" || getListingNumber(listing, "bathrooms") >= Number(minBaths);
+      minBathsValue === null || getListingNumber(listing, "bathrooms") >= minBathsValue;
 
     const matchesFurnished =
       !furnishedOnly || listing.furnished;
@@ -1394,7 +1523,7 @@ function App() {
         .slice(0, Math.max(listingsPerPage * 2, 8))
     : exactFilteredListings;
   const commuteFallbackMessage = isShowingCommuteFallback
-    ? `No places were inside ${maxCommuteTime} minutes of ${commuteTargetName}, so these are the closest places that match your other must-haves.`
+    ? `No places were inside ${maxCommuteTimeValue} minutes of ${commuteTargetName}, so these are the closest places that match your other must-haves.`
     : "";
   const scoredListings: ScoredListing[] = filteredListings.map((listing) => {
     const scoreBreakdown = calculateScoreBreakdown(
@@ -1982,57 +2111,121 @@ function App() {
             Max price
             <input
               type="number"
+              min={preferenceNumberRules.maxPrice.min}
+              max={preferenceNumberRules.maxPrice.max}
+              inputMode="numeric"
               placeholder="1500"
               value={maxPrice}
-              onChange={(e) => setMaxPrice(e.target.value)}
+              onChange={(e) =>
+                setMaxPrice(stageNumericPreference(e.target.value, preferenceNumberRules.maxPrice))
+              }
+              onBlur={() =>
+                setMaxPrice(cleanNumericPreference(maxPrice, preferenceNumberRules.maxPrice))
+              }
             />
           </label>
           <label>
             Max commute time
             <input
               type="number"
+              min={preferenceNumberRules.maxCommuteTime.min}
+              max={preferenceNumberRules.maxCommuteTime.max}
+              inputMode="numeric"
               placeholder="20 minutes"
               value={maxCommuteTime}
-              onChange={(e) => setMaxCommuteTime(e.target.value)}
+              onChange={(e) =>
+                setMaxCommuteTime(
+                  stageNumericPreference(e.target.value, preferenceNumberRules.maxCommuteTime)
+                )
+              }
+              onBlur={() =>
+                setMaxCommuteTime(
+                  cleanNumericPreference(maxCommuteTime, preferenceNumberRules.maxCommuteTime)
+                )
+              }
             />
           </label>
           <label>
             Lease term
             <input
               type="number"
+              min={preferenceNumberRules.leaseTerm.min}
+              max={preferenceNumberRules.leaseTerm.max}
+              inputMode="numeric"
               placeholder="12 months"
               value={leaseTerm}
-              onChange={(e) => setLeaseTerm(e.target.value)}
+              onChange={(e) =>
+                setLeaseTerm(stageNumericPreference(e.target.value, preferenceNumberRules.leaseTerm))
+              }
+              onBlur={() =>
+                setLeaseTerm(cleanNumericPreference(leaseTerm, preferenceNumberRules.leaseTerm))
+              }
             />
           </label>
           <label>
             Minimum bedrooms
             <input
               type="number"
+              min={preferenceNumberRules.minBedrooms.min}
+              max={preferenceNumberRules.minBedrooms.max}
+              inputMode="numeric"
               placeholder="1"
               value={minBedrooms}
-              onChange={(e) => setMinBedrooms(e.target.value)}
+              onChange={(e) =>
+                setMinBedrooms(
+                  stageNumericPreference(e.target.value, preferenceNumberRules.minBedrooms)
+                )
+              }
+              onBlur={() =>
+                setMinBedrooms(
+                  cleanNumericPreference(minBedrooms, preferenceNumberRules.minBedrooms)
+                )
+              }
             />
           </label>
           <label>
             Minimum square feet
             <input
               type="number"
+              min={preferenceNumberRules.minSquareFeet.min}
+              max={preferenceNumberRules.minSquareFeet.max}
+              inputMode="numeric"
               placeholder="500"
               value={minSquareFeet}
-              onChange={(e) => setMinSquareFeet(e.target.value)}
+              onChange={(e) =>
+                setMinSquareFeet(
+                  stageNumericPreference(e.target.value, preferenceNumberRules.minSquareFeet)
+                )
+              }
+              onBlur={() =>
+                setMinSquareFeet(
+                  cleanNumericPreference(minSquareFeet, preferenceNumberRules.minSquareFeet)
+                )
+              }
             />
           </label>
           <label>
             Minimum baths
             <input
               type="number"
+              min={preferenceNumberRules.minBaths.min}
+              max={preferenceNumberRules.minBaths.max}
+              step="0.5"
+              inputMode="decimal"
               placeholder="1"
               value={minBaths}
-              onChange={(e) => setMinBaths(e.target.value)}
+              onChange={(e) =>
+                setMinBaths(stageNumericPreference(e.target.value, preferenceNumberRules.minBaths))
+              }
+              onBlur={() =>
+                setMinBaths(cleanNumericPreference(minBaths, preferenceNumberRules.minBaths))
+              }
             />
           </label>
         </div>
+        <p className="input-safety-note">
+          If a number looks unrealistic, the app cleans it up automatically.
+        </p>
 
         <div className="checkbox-row" aria-label="Required amenities">
           <label>

@@ -29,7 +29,7 @@ export type Listing = {
     websiteUri?: string;
     websiteLabel?: string;
     listingSearchUri?: string;
-    listingLinkType?: "direct" | "source" | "search";
+    listingLinkType?: "direct" | "unavailable";
     latitude?: number;
     longitude?: number;
     dataSource?: "rentcast" | "sample";

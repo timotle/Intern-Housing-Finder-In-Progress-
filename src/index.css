@@ -628,6 +628,13 @@ h3 {
   padding: 0.82rem 0.9rem;
 }
 
+.input-safety-note {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 850;
+  margin: -0.35rem 0 0;
+}
+
 .checkbox-row label {
   align-items: center;
   background: #ffffff;
@@ -1239,11 +1246,16 @@ h3 {
   background: #eafffb;
 }
 
-.listing-link-note {
+.listing-link-unavailable {
+  background: #fff7cc;
+  border: 2px solid var(--yellow);
+  border-radius: 999px;
   color: var(--muted);
   font-size: 0.82rem;
-  font-weight: 850;
-  margin: -0.45rem 0 1rem;
+  font-weight: 950;
+  margin: 0.9rem 0 1rem;
+  max-width: fit-content;
+  padding: 0.45rem 0.72rem;
 }
 
 .explanation-card {
