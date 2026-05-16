@@ -26,20 +26,22 @@ function ListingCard({
     isMapSelected = false,
 }: ListingCardProps) {
     const isExplanationOpen = Boolean(explanation) || isLoading;
+    const isStudio = listing.numBedroom === 0;
     const squareFeet = listing.squareFootage ? `${listing.squareFootage} sq ft` : "Not listed";
     const baths =
         listing.bathrooms !== undefined && listing.bathrooms !== null
             ? `${listing.bathrooms}`
-            : "Not listed";
-    const locationText = listing.address || listing.location;
-    const hasDirectListingLink = listing.listingLinkType === "direct" && Boolean(listing.websiteUri);
+            : "Baths not listed";
+    const hasListingLink = listing.listingLinkType !== "unavailable" && Boolean(listing.websiteUri);
     const listingCheckLabel = listing.websiteLabel || "View listing";
-
+    const hasContactLink = Boolean(listing.contactUri);
     return(
         <article
+            id={`listing-${listing.id}`}
             className={`listing-row ${isExplanationOpen ? "has-explanation" : ""} ${
                 isMapSelected ? "is-map-selected" : ""
             }`}
+            data-listing-card={listing.id}
         >
             <div className="listing-card">
                 <div className="listing-topline">
@@ -49,12 +51,6 @@ function ListingCard({
                     )}
                 </div>
                 <h3>{listing.name}</h3>
-                <p className="location-line">{locationText}</p>
-                {!hideScore && listing.matchScore !== undefined && (
-                    <p className="score-note">
-                        Based on your commute, budget, lease, space, baths, and amenities.
-                    </p>
-                )}
                 <dl className="listing-facts">
                     <div>
                         <dt>Price</dt>
@@ -82,14 +78,32 @@ function ListingCard({
                     </div>
                 </dl>
                 <div className="amenity-tags">
-                    {listing.furnished && <span>Furnished</span>}
-                    {listing.laundry && <span>Laundry</span>}
-                    {listing.parking && <span>Parking</span>}
+                    {isStudio && <span>Studio</span>}
+                    {listing.amenitiesKnown === false ? (
+                        <span>Amenities not listed</span>
+                    ) : (
+                        <>
+                            {listing.furnished && <span>Furnished</span>}
+                            {listing.laundry && <span>Laundry</span>}
+                            {listing.parking && <span>Parking</span>}
+                        </>
+                    )}
                 </div>
-                {hasDirectListingLink ? (
+                {hasListingLink ? (
                     <div className="listing-links">
                         <a href={listing.websiteUri} target="_blank" rel="noreferrer">
                             {listingCheckLabel}
+                        </a>
+                    </div>
+                ) : hasContactLink ? (
+                    <div className="listing-links">
+                        <a
+                            className="listing-contact-link"
+                            href={listing.contactUri}
+                            target="_blank"
+                            rel="noreferrer"
+                        >
+                            {listing.contactLabel || "Contact listing office"}
                         </a>
                     </div>
                 ) : (
@@ -97,7 +111,7 @@ function ListingCard({
                         Direct leasing link not provided for this listing yet.
                     </p>
                 )}
-                <button disabled={isLoading} onClick={() => onExplainMatch(listing)}>
+                <button disabled={isLoading} onClick={() => onExplainMatch(listing)} type="button">
                     {isLoading
                         ? "Checking..."
                         : isExplanationOpen

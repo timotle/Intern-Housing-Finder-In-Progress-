@@ -131,6 +131,67 @@ const commuteTargets: CommuteTarget[] = [
     longitude: -122.1215,
     keywords: ["redmond", "microsoft", "meta", "tech campus"],
   },
+  {
+    id: "kirkland",
+    label: "Kirkland",
+    area: "Eastside",
+    latitude: 47.6769,
+    longitude: -122.206,
+    keywords: ["kirkland", "google kirkland", "totem lake"],
+  },
+  {
+    id: "renton",
+    label: "Renton",
+    area: "South Seattle",
+    latitude: 47.4829,
+    longitude: -122.2171,
+    keywords: ["renton", "boeing renton", "tukwila"],
+  },
+  {
+    id: "bothell",
+    label: "Bothell",
+    area: "North Eastside",
+    latitude: 47.7601,
+    longitude: -122.2054,
+    keywords: ["bothell", "woodinville", "uw bothell"],
+  },
+  {
+    id: "everett",
+    label: "Everett",
+    area: "North Sound",
+    latitude: 47.9789,
+    longitude: -122.2021,
+    keywords: ["everett", "boeing everett", "mukilteo"],
+  },
+  {
+    id: "tacoma",
+    label: "Tacoma",
+    area: "South Sound",
+    latitude: 47.2529,
+    longitude: -122.4443,
+    keywords: ["tacoma", "federal way", "auburn"],
+  },
+];
+
+const supportedCommuteCities = [
+  "seattle",
+  "bellevue",
+  "redmond",
+  "kirkland",
+  "renton",
+  "bothell",
+  "everett",
+  "tacoma",
+  "lynnwood",
+  "woodinville",
+  "sammamish",
+  "mercer island",
+  "newcastle",
+  "tukwila",
+  "kent",
+  "auburn",
+  "federal way",
+  "mukilteo",
 ];
 
 async function getMatchExplanation(
@@ -176,7 +237,12 @@ async function getMatchExplanation(
 async function resolveCommuteTarget(
   query: string,
   fallbackTarget: CommuteTarget
-): Promise<{ target: CommuteTarget; status: CommuteResolutionStatus; message: string }> {
+): Promise<{
+  target: CommuteTarget;
+  status: CommuteResolutionStatus;
+  message: string;
+  unsupported?: boolean;
+}> {
   const response = await fetch(`${API_BASE_URL}/api/resolve-commute-target`, {
     method: "POST",
     headers: {
@@ -217,6 +283,7 @@ async function resolveCommuteTarget(
     },
     status: data.source === "openai" ? "resolved" : "fallback",
     message: data.message || "Matched your internship area.",
+    unsupported: Boolean(data.unsupported),
   };
 }
 
@@ -533,21 +600,13 @@ function estimateCommuteMinutesForTarget(listing: Listing, target: CommuteTarget
 
 function getTargetCity(target: CommuteTarget) {
   const targetText = `${target.label} ${target.area}`.toLowerCase();
+  const matchedCity = supportedCommuteCities.find((city) => targetText.includes(city));
 
-  if (targetText.includes("bellevue")) {
-    return "Bellevue";
-  }
-
-  if (targetText.includes("redmond")) {
-    return "Redmond";
-  }
-
-  if (targetText.includes("kirkland")) {
-    return "Kirkland";
-  }
-
-  if (targetText.includes("renton")) {
-    return "Renton";
+  if (matchedCity) {
+    return matchedCity
+      .split(" ")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
   }
 
   return "Seattle";
@@ -577,7 +636,9 @@ function isLikelyPartialAddress(input: string) {
       normalizedInput
     );
   const hasCityOrState =
-    /\b(seattle|bellevue|redmond|kirkland|renton|wa|washington)\b/.test(normalizedInput);
+    /\b(seattle|bellevue|redmond|kirkland|renton|bothell|everett|tacoma|lynnwood|woodinville|sammamish|mercer island|newcastle|tukwila|kent|auburn|federal way|mukilteo|wa|washington)\b/.test(
+      normalizedInput
+    );
 
   return normalizedInput.length < 12 || !hasStreetWord || !hasCityOrState;
 }
@@ -595,6 +656,10 @@ function getPriorityStrength(
 }
 
 function getAmenityStrength(listing: Listing) {
+  if (listing.amenitiesKnown === false) {
+    return 0.5;
+  }
+
   return [listing.furnished, listing.laundry, listing.parking].filter(Boolean).length / 3;
 }
 
@@ -791,9 +856,14 @@ function calculateScoreBreakdown(
     }
 
     if (category === "amenities") {
-      const amenityCount = [listing.furnished, listing.laundry, listing.parking].filter(Boolean).length;
-      basePoints = (amenityCount / 3) * categoryInfo.maxPoints;
-      explanation = `${amenityCount} of 3 tracked amenities: furnished, laundry, parking`;
+      if (listing.amenitiesKnown === false) {
+        basePoints = categoryInfo.maxPoints * 0.5;
+        explanation = "Amenity details are not listed yet, so this gets a neutral amenity score";
+      } else {
+        const amenityCount = [listing.furnished, listing.laundry, listing.parking].filter(Boolean).length;
+        basePoints = (amenityCount / 3) * categoryInfo.maxPoints;
+        explanation = `${amenityCount} of 3 tracked amenities: furnished, laundry, parking`;
+      }
     }
 
     return {
@@ -964,13 +1034,14 @@ function ListingMetricChart({
 }) {
   const values = listings.map((listing) => Number(listing[metric]) || 0);
   const maxValue = Math.max(...values, 1);
-  const chartWidth = 920;
-  const chartHeight = 350;
-  const paddingX = 62;
-  const paddingTop = 58;
-  const paddingBottom = 96;
+  const chartWidth = 960;
+  const chartHeight = 360;
+  const paddingX = 66;
+  const paddingTop = 64;
+  const paddingBottom = 104;
   const plotWidth = chartWidth - paddingX * 2;
   const plotHeight = chartHeight - paddingTop - paddingBottom;
+  const isSingleListing = listings.length === 1;
   const isDenseChart = listings.length > 12;
   const points = values.map((value, index) => {
     const x =
@@ -1012,7 +1083,13 @@ function ListingMetricChart({
           height="24"
           rx="12"
         />
-        <text className="chart-axis-label" x={chartWidth / 2} y={chartHeight - 14}>
+        <text
+          className="chart-axis-label"
+          x={chartWidth / 2}
+          y={chartHeight - 14}
+          textAnchor="middle"
+          dominantBaseline="middle"
+        >
           {xAxisLabel}
         </text>
         <g transform={`translate(18 ${chartHeight / 2}) rotate(-90)`}>
@@ -1024,16 +1101,28 @@ function ListingMetricChart({
             height="24"
             rx="12"
           />
-          <text className="chart-axis-label" x="0" y="5">
+          <text
+            className="chart-axis-label"
+            x="0"
+            y="5"
+            textAnchor="middle"
+            dominantBaseline="middle"
+          >
             {chartMetrics[metric].label}
           </text>
         </g>
         {chartType === "bar" ? (
           values.map((value, index) => {
-            const barGap = Math.max(4, Math.min(18, plotWidth / listings.length / 2.4));
-            const barWidth = (plotWidth - barGap * (listings.length - 1)) / listings.length;
+            const barGap = isSingleListing
+              ? 0
+              : Math.max(5, Math.min(20, plotWidth / listings.length / 2.15));
+            const barWidth = isSingleListing
+              ? 92
+              : (plotWidth - barGap * (listings.length - 1)) / listings.length;
             const barHeight = (value / maxValue) * plotHeight;
-            const x = paddingX + index * (barWidth + barGap);
+            const x = isSingleListing
+              ? chartWidth / 2 - barWidth / 2
+              : paddingX + index * (barWidth + barGap);
             const y = chartHeight - paddingBottom - barHeight;
 
             return (
@@ -1051,11 +1140,19 @@ function ListingMetricChart({
                     highlightedListingIds.includes(listings[index].id) ? "is-highlighted" : ""
                   }`}
                   x={x + barWidth / 2}
-                  y={Math.min(chartHeight - paddingBottom - 8, y + 22)}
+                  y={Math.min(chartHeight - paddingBottom - 9, y + 17)}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
                 >
                   {Math.round(value)}
                 </text>
-                <text className="chart-label" x={x + barWidth / 2} y={chartHeight - 50}>
+                <text
+                  className="chart-label"
+                  x={x + barWidth / 2}
+                  y={chartHeight - 50}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                >
                   #{index + 1}
                 </text>
               </g>
@@ -1064,38 +1161,55 @@ function ListingMetricChart({
         ) : (
           <>
             <path className="chart-line" d={linePath} />
-            {points.map((point, index) => (
-              <g key={listings[index].id}>
-                <circle
-                  className={`chart-dot ${highlightedListingIds.includes(listings[index].id) ? "is-highlighted" : ""}`}
-                  cx={point.x}
-                  cy={point.y}
-                  r={highlightedListingIds.includes(listings[index].id) ? "7" : "4"}
-                />
-                <text
-                  className="chart-value"
-                  x={point.x}
-                  y={Math.max(20, point.y - 13 - (isDenseChart ? (index % 2) * 16 : 0))}
-                >
-                  {Math.round(point.value)}
-                </text>
-                <text className="chart-label" x={point.x} y={chartHeight - 50}>
-                  #{index + 1}
-                </text>
-              </g>
-            ))}
+            {points.map((point, index) => {
+              const valueLabelOffset = isDenseChart ? 13 + (index % 3) * 10 : 15;
+
+              return (
+                <g key={listings[index].id}>
+                  <circle
+                    className={`chart-dot ${highlightedListingIds.includes(listings[index].id) ? "is-highlighted" : ""}`}
+                    cx={point.x}
+                    cy={point.y}
+                    r={highlightedListingIds.includes(listings[index].id) ? "7" : "4"}
+                  />
+                  <text
+                    className="chart-value"
+                    x={point.x}
+                    y={Math.max(22, point.y - valueLabelOffset)}
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                  >
+                    {Math.round(point.value)}
+                  </text>
+                  <text
+                    className="chart-label"
+                    x={point.x}
+                    y={chartHeight - 50}
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                  >
+                    #{index + 1}
+                  </text>
+                </g>
+              );
+            })}
           </>
         )}
       </svg>
       <div className="chart-legend">
-        {listings.map((listing, index) => (
-          <span
-            className={highlightedListingIds.includes(listing.id) ? "is-highlighted" : ""}
-            key={listing.id}
-          >
-            #{index + 1} {listing.name}
-          </span>
-        ))}
+        {listings.map((listing, index) => {
+          const isHighlighted = highlightedListingIds.includes(listing.id);
+
+          return (
+            <span
+              className={`chart-legend-chip ${isHighlighted ? "is-highlighted" : ""}`}
+              key={listing.id}
+            >
+              <strong className="chart-rank-badge">#{index + 1}</strong>
+              <em className="chart-listing-name">{listing.name}</em>
+            </span>
+          );
+        })}
       </div>
     </div>
   );
@@ -1131,8 +1245,8 @@ function createListingMapIcon({
   return L.divIcon({
     className: "map-marker-shell",
     html: `<span class="${className}">${escapeMapText(label)}</span>`,
-    iconSize: [34, 34],
-    iconAnchor: [17, 17],
+    iconSize: [44, 44],
+    iconAnchor: [22, 22],
     popupAnchor: [0, -18],
   });
 }
@@ -1141,10 +1255,55 @@ function createCommuteTargetIcon() {
   return L.divIcon({
     className: "map-marker-shell",
     html: `<span class="map-marker map-marker-target"><span class="map-marker-target-star">&#9733;</span></span>`,
-    iconSize: [42, 42],
-    iconAnchor: [21, 21],
+    iconSize: [48, 48],
+    iconAnchor: [24, 24],
     popupAnchor: [0, -22],
   });
+}
+
+function getVisibleMapListings(
+  listings: ScoredListing[],
+  mapListingIds: number[]
+) {
+  const visibleIdSet = new Set(mapListingIds);
+
+  return listings
+    .map((listing, sortedIndex) => ({ listing, sortedIndex }))
+    .filter(
+      ({ listing }) =>
+        visibleIdSet.has(listing.id) &&
+        Number.isFinite(listing.latitude) &&
+        Number.isFinite(listing.longitude)
+    );
+}
+
+function getAdjustedMapLatLng(
+  listing: ScoredListing,
+  visibleListings: Array<{ listing: ScoredListing; sortedIndex: number }>
+) {
+  const latitude = Number(listing.latitude);
+  const longitude = Number(listing.longitude);
+  const coordinateKey = `${latitude.toFixed(5)}|${longitude.toFixed(5)}`;
+  const listingsAtSameCoordinate = visibleListings.filter(({ listing: nearbyListing }) => {
+    const nearbyLatitude = Number(nearbyListing.latitude);
+    const nearbyLongitude = Number(nearbyListing.longitude);
+    return `${nearbyLatitude.toFixed(5)}|${nearbyLongitude.toFixed(5)}` === coordinateKey;
+  });
+
+  if (listingsAtSameCoordinate.length <= 1) {
+    return L.latLng(latitude, longitude);
+  }
+
+  const duplicateIndex = listingsAtSameCoordinate.findIndex(
+    ({ listing: nearbyListing }) => nearbyListing.id === listing.id
+  );
+  const angle = (duplicateIndex / listingsAtSameCoordinate.length) * Math.PI * 2;
+  const radius = 0.00028;
+
+  return L.latLng(
+    latitude + Math.sin(angle) * radius,
+    longitude + Math.cos(angle) * radius
+  );
 }
 
 function ListingsMap({
@@ -1217,20 +1376,15 @@ function ListingsMap({
       )
       .addTo(markerLayer);
 
-    listings.forEach((listing, index) => {
-      if (
-        !mapListingIds.includes(listing.id) ||
-        !Number.isFinite(listing.latitude) ||
-        !Number.isFinite(listing.longitude)
-      ) {
-        return;
-      }
+    const visibleMapListings = getVisibleMapListings(listings, mapListingIds);
 
-      const listingLatLng = L.latLng(Number(listing.latitude), Number(listing.longitude));
+    visibleMapListings.forEach(({ listing, sortedIndex }) => {
+      const listingLatLng = getAdjustedMapLatLng(listing, visibleMapListings);
       const isSelected = selectedListingId === listing.id;
+      const listingRank = sortedIndex + 1;
       const marker = L.marker(listingLatLng, {
         icon: createListingMapIcon({
-          label: String(index + 1),
+          label: String(listingRank),
           isHighlighted: true,
           isSelected,
         }),
@@ -1242,7 +1396,7 @@ function ListingsMap({
         .bindPopup(
           `<strong>${escapeMapText(listing.name)}</strong><br />${escapeMapText(
             rankLabel
-          )} #${index + 1}<br />${escapeMapText(listing.commuteTime)} min commute`
+          )} #${listingRank}<br />${escapeMapText(listing.commuteTime)} min commute`
         )
         .on("click", () => onListingSelect(listing.id))
         .addTo(markerLayer);
@@ -1279,10 +1433,6 @@ function ListingsMap({
           <span className="legend-current">{mapListingIds.length} places</span>
         </div>
       </div>
-      <p className="panel-copy">
-        The map shows your internship plus the places from the current results
-        page, so it stays easy to read.
-      </p>
       <div
         className="listing-map"
         ref={mapContainerRef}
@@ -1345,6 +1495,7 @@ function App() {
   const [priorityOrder, setPriorityOrder] = useState<ScoreCategoryKey[]>(defaultPriorityOrder);
   const [draggedPriority, setDraggedPriority] = useState<ScoreCategoryKey | null>(null);
   const [dragOverPriority, setDragOverPriority] = useState<ScoreCategoryKey | null>(null);
+  const dragPointerIdRef = useRef<number | null>(null);
 
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1385,6 +1536,8 @@ function App() {
 
     const fetchListings = async () => {
       setLoading(true);
+      setError("");
+      setListings([]);
       try {
         const params = new URLSearchParams({
           latitude: String(selectedCommuteTarget.latitude),
@@ -1483,13 +1636,13 @@ function App() {
       minBathsValue === null || getListingNumber(listing, "bathrooms") >= minBathsValue;
 
     const matchesFurnished =
-      !furnishedOnly || listing.furnished;
+      !furnishedOnly || listing.amenitiesKnown === false || listing.furnished;
 
     const matchesLaundry =
-      !laundryOnly || listing.laundry;
+      !laundryOnly || listing.amenitiesKnown === false || listing.laundry;
 
     const matchesParking =
-      !parkingOnly || listing.parking;
+      !parkingOnly || listing.amenitiesKnown === false || listing.parking;
 
     return (
       matchesPrice &&
@@ -1515,7 +1668,7 @@ function App() {
     exactFilteredListings.length === 0 && commuteRelaxedListings.length > 0;
   const noListingsLoadedForArea = !loading && listingsWithCommute.length === 0;
   const emptyResultsCopy = noListingsLoadedForArea
-    ? `I couldn't load nearby live listings for ${selectedCommuteTarget.label} right now. Try another nearby area or check again in a bit.`
+    ? `I couldn't load nearby live listings for ${selectedCommuteTarget.label} right now. Try another nearby Puget Sound area or check again in a bit.`
     : "Nothing matches those filters yet. Go back and loosen one thing to see more options.";
   const filteredListings = isShowingCommuteFallback
     ? [...commuteRelaxedListings]
@@ -1629,11 +1782,11 @@ function App() {
       listingPageChanges: current.listingPageChanges + 1,
     }));
     window.setTimeout(() => {
-      document.querySelector(".results-section")?.scrollIntoView({
+      document.getElementById(`listing-${listingId}`)?.scrollIntoView({
         behavior: "smooth",
-        block: "start",
+        block: "center",
       });
-    }, 0);
+    }, 80);
   };
 
   const openResultsWithIntro = ({
@@ -1687,6 +1840,15 @@ function App() {
 
     try {
       const matchedLocation = await resolveCommuteTarget(typedLocation, presetCommuteTarget);
+
+      if (matchedLocation.unsupported) {
+        setResolvedCommuteTarget(null);
+        setSelectedCommuteTargetId(presetCommuteTarget.id);
+        setCommuteResolutionStatus("fallback");
+        setCommuteResolutionMessage(matchedLocation.message);
+        return;
+      }
+
       setResolvedCommuteTarget(matchedLocation.target);
       setCommuteResolutionStatus(matchedLocation.status);
       setCommuteResolutionMessage(matchedLocation.message);
@@ -1707,12 +1869,89 @@ function App() {
     }
   };
 
+  const getPriorityCardPositions = () => {
+    const priorityList = priorityListRef.current;
+    const positions = new Map<ScoreCategoryKey, DOMRect>();
+
+    if (!priorityList) {
+      return positions;
+    }
+
+    Array.from(priorityList.querySelectorAll<HTMLElement>("[data-priority-card]")).forEach(
+      (card) => {
+        const category = card.dataset.priorityCategory as ScoreCategoryKey | undefined;
+
+        if (category) {
+          positions.set(category, card.getBoundingClientRect());
+        }
+      }
+    );
+
+    return positions;
+  };
+
+  const animatePriorityLayoutChange = (
+    previousPositions: Map<ScoreCategoryKey, DOMRect>,
+    activeDraggedPriority: ScoreCategoryKey
+  ) => {
+    window.requestAnimationFrame(() => {
+      const priorityList = priorityListRef.current;
+
+      if (!priorityList) {
+        return;
+      }
+
+      Array.from(priorityList.querySelectorAll<HTMLElement>("[data-priority-card]")).forEach(
+        (card) => {
+          const category = card.dataset.priorityCategory as ScoreCategoryKey | undefined;
+
+          if (!category || category === activeDraggedPriority) {
+            return;
+          }
+
+          const previousBox = previousPositions.get(category);
+
+          if (!previousBox) {
+            return;
+          }
+
+          const currentBox = card.getBoundingClientRect();
+          const deltaY = previousBox.top - currentBox.top;
+
+          if (Math.abs(deltaY) < 1) {
+            return;
+          }
+
+          card.animate(
+            [
+              { transform: `translateY(${deltaY}px)` },
+              { transform: "translateY(0)" },
+            ],
+            {
+              duration: 260,
+              easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+            }
+          );
+        }
+      );
+    });
+  };
+
+  const finishPriorityDrag = () => {
+    draggedPriorityRef.current = null;
+    dragPointerIdRef.current = null;
+    setDraggedPriority(null);
+    setDragOverPriority(null);
+  };
+
   const movePriorityToIndex = (insertIndex: number) => {
     const activeDraggedPriority = draggedPriorityRef.current;
 
     if (!activeDraggedPriority) {
       return;
     }
+
+    const previousPositions = getPriorityCardPositions();
 
     setRankingMode("custom");
 
@@ -1729,6 +1968,7 @@ function App() {
         return currentOrder;
       }
 
+      animatePriorityLayoutChange(previousPositions, activeDraggedPriority);
       return nextOrder;
     });
   };
@@ -1863,23 +2103,66 @@ function App() {
       setLoadingIds((current) => current.filter((listingId) => listingId !== listing.id));
     }
   }
-  if (loading && listings.length === 0) return <p>Loading listings...</p>;
-  if (error) return <p>{error}</p>;
   return (
-    <main className={`app-shell ${activePage === "home" ? "is-home" : "is-flow"}`}>
+    <main
+      className={`app-shell ${activePage === "home" ? "is-home" : "is-flow"} ${
+        activePage === "results" ? "is-results" : ""
+      } page-${activePage}`}
+    >
+      <div className="anime-ui-stage" aria-hidden="true">
+        <span className="ui-layer ui-layer-teal" />
+        <span className="ui-layer ui-layer-pink" />
+        <span className="ui-layer ui-layer-yellow" />
+        <span className="ui-layer ui-layer-black ui-layer-black-one" />
+        <span className="ui-layer ui-layer-black ui-layer-black-two" />
+        <span className="ui-layer ui-layer-dots" />
+        <span className="ui-burst ui-burst-one" />
+        <span className="ui-burst ui-burst-two" />
+        <span className="ui-helper-sprite">
+          <span className="ui-helper-face" />
+        </span>
+        <span className="ui-cat-sticker ui-cat-sticker-one">
+          <span className="ui-cat-ear ui-cat-ear-left" />
+          <span className="ui-cat-ear ui-cat-ear-right" />
+          <span className="ui-cat-face" />
+        </span>
+        <span className="ui-console-sticker">
+          <span className="ui-console-face" />
+          <span className="ui-console-button ui-console-button-one" />
+          <span className="ui-console-button ui-console-button-two" />
+        </span>
+      </div>
       <header className="app-header">
         <p className="eyebrow">AI-assisted</p>
         <h1>
-          Intern <span className="title-keep">Housing Finder</span>
+          Housing Finder
         </h1>
         <p className="hero-copy">
-          Find real Seattle rentals that fit your commute, budget, and living
-          style without opening a million tabs.
+          Find real Puget Sound rentals that fit your commute, budget, and lifestyle.
         </p>
         <div className="hero-points" aria-label="Project strengths">
           <span>Real rentals</span>
           <span>Commute estimates</span>
           <span>AI tradeoff help</span>
+        </div>
+        <div className="hero-mascot-collage" aria-hidden="true">
+          <span className="hero-impact-card hero-impact-card-one" />
+          <span className="hero-impact-card hero-impact-card-two" />
+          <span className="hero-impact-card hero-impact-card-three" />
+          <span className="hero-mascot hero-mascot-console">
+            <span className="hero-console-screen" />
+            <span className="hero-console-pad" />
+            <span className="hero-console-button hero-console-button-one" />
+            <span className="hero-console-button hero-console-button-two" />
+          </span>
+          <span className="hero-mascot hero-mascot-cat">
+            <span className="hero-cat-ear hero-cat-ear-left" />
+            <span className="hero-cat-ear hero-cat-ear-right" />
+            <span className="hero-cat-face" />
+            <span className="hero-cat-tail" />
+          </span>
+          <span className="hero-mascot hero-mascot-jelly" />
+          <span className="hero-energy-ring" />
         </div>
         {activePage !== "home" && (
           <nav className="step-nav" aria-label="Current step">
@@ -1906,44 +2189,114 @@ function App() {
         )}
       </header>
 
-      <section className={`page-section home-page ${activePage === "home" ? "" : "is-hidden"}`}>
-        <div className="start-panel">
-          <button onClick={() => setActivePage("location")} type="button">
-            Start finding housing
-          </button>
+      {(loading || error) && (
+        <div className={`app-status ${error ? "is-warning" : ""}`} role="status">
+          {error
+            ? "Listings are having trouble loading right now. You can still move through the app and try another area."
+            : "Updating listings for this area..."}
         </div>
-        <div className="home-grid">
-          <article className="home-card">
-            <p className="eyebrow">Step 1</p>
-            <h3>Add your commute</h3>
-            <p>
-              Tell us where your internship is so the commute numbers make
-              sense.
-            </p>
-          </article>
-          <article className="home-card">
-            <p className="eyebrow">Step 2</p>
-            <h3>Set dealbreakers</h3>
-            <p>
-              Add the budget, space, lease, and amenities you actually care
-              about.
-            </p>
-          </article>
-          <article className="home-card">
-            <p className="eyebrow">Step 3</p>
-            <h3>Pick priorities</h3>
-            <p>
-              Drag what matters most to the top so the app knows your vibe.
-            </p>
-          </article>
-          <article className="home-card">
-            <p className="eyebrow">Step 4</p>
-            <h3>See your matches</h3>
-            <p>
-              Compare listings, map pins, charts, and AI tradeoffs in one
-              place.
-            </p>
-          </article>
+      )}
+
+      <section className={`page-section home-page ${activePage === "home" ? "" : "is-hidden"}`}>
+        <div className="home-start-screen">
+          <div className="home-device" aria-label="Housing Finder start screen">
+            <div className="device-side device-side-left" aria-hidden="true">
+              <span className="device-speaker" />
+              <span className="device-stick" />
+              <span className="device-dpad device-dpad-up" />
+              <span className="device-dpad device-dpad-left" />
+              <span className="device-dpad device-dpad-right" />
+              <span className="device-dpad device-dpad-down" />
+            </div>
+
+            <div className="device-center">
+              <div className="device-screen">
+                <span className="screen-shape screen-shape-one" aria-hidden="true" />
+                <span className="screen-shape screen-shape-two" aria-hidden="true" />
+                <span className="screen-shape screen-shape-three" aria-hidden="true" />
+                <div className="home-sticker-intro">
+                  <span className="intro-pop intro-pop-one" aria-hidden="true" />
+                  <span className="intro-pop intro-pop-two" aria-hidden="true" />
+                  <span className="intro-sticker intro-sticker-jelly" aria-hidden="true">
+                    <span className="intro-jelly" />
+                  </span>
+                  <span className="intro-sticker intro-sticker-cat" aria-hidden="true">
+                    <img src="/cat-loader.gif" alt="" draggable="false" />
+                  </span>
+                  <span className="intro-sticker intro-sticker-ai" aria-hidden="true">AI</span>
+                  <button
+                    className="intro-start-button"
+                    onClick={() => setActivePage("location")}
+                    type="button"
+                  >
+                    <span className="intro-start-ready">
+                      <span className="intro-start-text">Start</span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="device-side device-side-right" aria-hidden="true">
+              <span className="device-plus">+</span>
+              <span className="device-button button-x">X</span>
+              <span className="device-button button-y">Y</span>
+              <span className="device-button button-a">A</span>
+              <span className="device-button button-b">B</span>
+              <span className="device-stick device-stick-right" />
+            </div>
+          </div>
+
+          <div className="home-overview" aria-label="Housing Finder overview">
+            <div className="home-overview-intro">
+              <p className="eyebrow">Overview</p>
+              <h2>A cleaner way to compare housing.</h2>
+              <p>
+                Start with your internship location, add only the filters that
+                matter, then compare rentals with a map, charts, ranking rules,
+                and quick AI tradeoff help.
+              </p>
+            </div>
+
+            <div className="home-overview-grid">
+              <article className="home-overview-card">
+                <span>01</span>
+                <h3>Add commute</h3>
+                <p>Choose your internship area so the app can compare places around where you need to be.</p>
+              </article>
+              <article className="home-overview-card">
+                <span>02</span>
+                <h3>Set must-haves</h3>
+                <p>Budget, bedrooms, baths, square feet, lease length, and amenities are all optional.</p>
+              </article>
+              <article className="home-overview-card">
+                <span>03</span>
+                <h3>Rank priorities</h3>
+                <p>Drag what matters most to the top so scores match how you actually decide.</p>
+              </article>
+              <article className="home-overview-card">
+                <span>04</span>
+                <h3>Compare results</h3>
+                <p>See four listings at a time with map markers, visuals, and AI tradeoff explanations.</p>
+              </article>
+            </div>
+
+            <div className="home-product-panel">
+              <div>
+                <p className="eyebrow">Why this helps</p>
+                <h3>AI help for the hard part.</h3>
+                <p>
+                  Most housing sites show you a long list and leave you to figure
+                  it out. This app uses AI to explain tradeoffs, compare the
+                  listings you care about, and help you understand which place
+                  fits what you actually want.
+                </p>
+              </div>
+              <button onClick={() => setActivePage("location")} type="button">
+                Start finding a place <span aria-hidden="true">&rarr;</span>
+              </button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -1954,7 +2307,7 @@ function App() {
         </div>
         <p className="panel-copy">
           Name your internship for the map. Then choose how we estimate your
-          commute: type a full address or pick a nearby area.
+          commute: type a full Puget Sound address or pick a nearby area.
         </p>
 
         <div className="location-input-label">
@@ -1977,7 +2330,7 @@ function App() {
             id="commute-location-input"
             className={hasPartialCommuteAddress ? "is-warning" : ""}
             type="text"
-            placeholder="Example: 410 Terry Ave N Seattle"
+            placeholder="Example: 1 Microsoft Way Redmond WA"
             value={internshipLocationInput}
             onChange={(event) => {
               const nextLocation = event.target.value;
@@ -1989,8 +2342,8 @@ function App() {
           />
           <span className={`location-helper ${hasPartialCommuteAddress ? "is-warning" : ""}`}>
             {hasPartialCommuteAddress
-              ? "That looks like a partial address. Add the full street and city, like 2412 S Jackson St Seattle."
-              : "Use this for a better commute estimate. Leave it blank if a quick pick is close enough."}
+              ? "That looks like a partial address. Add the full street and city, like 500 108th Ave NE Bellevue WA."
+              : "Use this for a better commute estimate. Seattle, Bellevue, Redmond, Tacoma, Everett, and nearby cities work best."}
           </span>
         </div>
 
@@ -2224,7 +2577,8 @@ function App() {
           </label>
         </div>
         <p className="input-safety-note">
-          If a number looks unrealistic, the app cleans it up automatically.
+          If a number looks unrealistic, the app cleans it up automatically. If
+          amenities are not listed, the app keeps the place in your results.
         </p>
 
         <div className="checkbox-row" aria-label="Required amenities">
@@ -2234,7 +2588,7 @@ function App() {
               checked={furnishedOnly}
               onChange={(e) => setFurnishedOnly(e.target.checked)}
             />
-            Furnished only
+            Prefer furnished
           </label>
           <label>
             <input
@@ -2242,7 +2596,7 @@ function App() {
               checked={laundryOnly}
               onChange={(e) => setLaundryOnly(e.target.checked)}
             />
-            Laundry only
+            Prefer laundry
           </label>
           <label>
             <input
@@ -2250,7 +2604,7 @@ function App() {
               checked={parkingOnly}
               onChange={(e) => setParkingOnly(e.target.checked)}
             />
-            Parking only
+            Prefer parking
           </label>
         </div>
         <div className="page-actions">
@@ -2296,16 +2650,6 @@ function App() {
           <div
             aria-label="Drag to reorder ranking priorities"
             className="priority-list"
-            onDragOver={(event) => {
-              event.preventDefault();
-              updatePriorityDragPosition(event.clientY);
-            }}
-            onDrop={(event) => {
-              event.preventDefault();
-              draggedPriorityRef.current = null;
-              setDraggedPriority(null);
-              setDragOverPriority(null);
-            }}
             ref={priorityListRef}
           >
             {priorityOrder.map((category, index) => {
@@ -2318,22 +2662,36 @@ function App() {
                   }`}
                   data-priority-card="true"
                   data-priority-category={category}
-                  draggable
                   key={category}
-                  onDragStart={(event) => {
-                    event.dataTransfer.effectAllowed = "move";
-                    const blankDragImage = document.createElement("div");
-                    blankDragImage.className = "priority-blank-drag-image";
-                    document.body.appendChild(blankDragImage);
-                    event.dataTransfer.setDragImage(blankDragImage, 0, 0);
-                    window.setTimeout(() => blankDragImage.remove(), 0);
+                  onPointerDown={(event) => {
+                    if (event.button !== 0) {
+                      return;
+                    }
+
+                    event.preventDefault();
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                    dragPointerIdRef.current = event.pointerId;
                     draggedPriorityRef.current = category;
                     setDraggedPriority(category);
                   }}
-                  onDragEnd={() => {
-                    draggedPriorityRef.current = null;
-                    setDraggedPriority(null);
-                    setDragOverPriority(null);
+                  onPointerMove={(event) => {
+                    if (dragPointerIdRef.current !== event.pointerId) {
+                      return;
+                    }
+
+                    event.preventDefault();
+                    updatePriorityDragPosition(event.clientY);
+                  }}
+                  onPointerUp={(event) => {
+                    if (dragPointerIdRef.current === event.pointerId) {
+                      event.currentTarget.releasePointerCapture(event.pointerId);
+                      finishPriorityDrag();
+                    }
+                  }}
+                  onPointerCancel={(event) => {
+                    if (dragPointerIdRef.current === event.pointerId) {
+                      finishPriorityDrag();
+                    }
                   }}
                 >
                   <span className="priority-rank">#{index + 1}</span>
@@ -2379,6 +2737,17 @@ function App() {
       </section>
 
       <section className={`page-section results-page ${activePage === "results" ? "" : "is-hidden"}`}>
+      <div className="results-stage-decor" aria-hidden="true">
+        <span className="results-shape results-shape-circle" />
+        <span className="results-shape results-shape-triangle" />
+        <span className="results-shape results-shape-rectangle" />
+        <span className="results-shape results-shape-mini" />
+        <span className="results-shape results-shape-zig" />
+        <span className="results-shape results-shape-slash-one" />
+        <span className="results-shape results-shape-slash-two" />
+        <span className="results-shape results-shape-burst" />
+        <span className="results-action-lines" />
+      </div>
       <div className="results-layout">
       {activePage === "results" && sortedListings.length > 0 && (
         <ListingsMap
@@ -2434,11 +2803,6 @@ function App() {
             </label>
           </div>
         </div>
-        <p className="panel-copy">
-          This chart includes every listing that matches. Pink ones are the 4
-          cards shown below.
-          {rankingMode === "skipped" && " Since ranking was skipped, the list is shuffled for browsing."}
-        </p>
         {commuteFallbackMessage && (
           <p className="results-notice">{commuteFallbackMessage}</p>
         )}

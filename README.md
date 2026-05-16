@@ -1,4 +1,4 @@
-# Intern Housing Finder
+# Housing Finder
 
 ## Live App
 
@@ -8,7 +8,7 @@ https://intern-housing-finder-in-progress.vercel.app/
 
 ## Overview
 
-Intern Housing Finder is a web app I built to help students and interns compare housing options when they are moving for internships. The goal is to make the housing search less overwhelming by putting listings, filters, rankings, visuals, and AI explanations in one place.
+Housing Finder is a web app I built to help students and interns compare housing options when they are moving for internships. The goal is to make the housing search less overwhelming by putting listings, filters, rankings, visuals, and AI explanations in one place.
 
 Instead of just showing a long list of apartments, the app helps users compare what actually matters: price, commute, lease length, bedrooms, square feet, bathrooms, and amenities.
 

@@ -1,4 +1,6 @@
-require("dotenv").config();
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
+require("dotenv").config({ path: path.join(__dirname, ".env") });
 const express = require("express");
 const cors = require("cors");
 const OpenAI = require("openai");
@@ -84,6 +86,46 @@ const COMMUTE_TARGETS = [
     longitude: -122.1215,
     keywords: ["redmond", "microsoft", "meta", "tech campus"],
   },
+  {
+    id: "kirkland",
+    label: "Kirkland",
+    area: "Eastside",
+    latitude: 47.6769,
+    longitude: -122.206,
+    keywords: ["kirkland", "google kirkland", "totem lake"],
+  },
+  {
+    id: "renton",
+    label: "Renton",
+    area: "South Seattle",
+    latitude: 47.4829,
+    longitude: -122.2171,
+    keywords: ["renton", "boeing renton", "tukwila"],
+  },
+  {
+    id: "bothell",
+    label: "Bothell",
+    area: "North Eastside",
+    latitude: 47.7601,
+    longitude: -122.2054,
+    keywords: ["bothell", "woodinville", "uw bothell"],
+  },
+  {
+    id: "everett",
+    label: "Everett",
+    area: "North Sound",
+    latitude: 47.9789,
+    longitude: -122.2021,
+    keywords: ["everett", "boeing everett", "mukilteo"],
+  },
+  {
+    id: "tacoma",
+    label: "Tacoma",
+    area: "South Sound",
+    latitude: 47.2529,
+    longitude: -122.4443,
+    keywords: ["tacoma", "federal way", "auburn"],
+  },
 ];
 
 function findFallbackCommuteTarget(query = "", fallbackTargetId = "uw") {
@@ -100,29 +142,32 @@ function findFallbackCommuteTarget(query = "", fallbackTargetId = "uw") {
 }
 
 function isGreaterSeattleCoordinate(latitude, longitude) {
-  return latitude >= 47.35 && latitude <= 47.85 && longitude >= -122.55 && longitude <= -121.95;
+  return latitude >= 47.1 && latitude <= 48.15 && longitude >= -122.7 && longitude <= -121.65;
 }
 
-function fallbackCommuteTargetResult(query, fallbackTarget, message) {
+function fallbackCommuteTargetResult(query, fallbackTarget, message, options = {}) {
   return {
     source: "fallback",
     message,
+    unsupported: Boolean(options.unsupported),
     target: {
       id: fallbackTarget.id,
-      label: query?.trim() ? `${query.trim()} area` : fallbackTarget.label,
-      area: fallbackTarget.label,
+      label: fallbackTarget.label,
+      area: fallbackTarget.area,
       latitude: fallbackTarget.latitude,
       longitude: fallbackTarget.longitude,
       source: "fallback",
       confidence: "low",
-      note: message,
+      note: query?.trim()
+        ? `${query.trim()} was not used as an exact commute point. ${message}`
+        : message,
     },
   };
 }
 
 async function resolveCommuteTargetWithOpenAI(query, fallbackTarget) {
   const prompt = `
-You help an intern housing app estimate commute targets in the greater Seattle area.
+You help an intern housing app estimate commute targets in the Puget Sound internship area.
 
 Given a user typed internship place, return a JSON object only:
 {
@@ -131,14 +176,14 @@ Given a user typed internship place, return a JSON object only:
   "latitude": 47.0000,
   "longitude": -122.0000,
   "confidence": "high" | "medium" | "low",
-  "matchedPresetId": "uw" | "downtown" | "slu" | "bellevue" | "redmond" | null,
+  "matchedPresetId": "uw" | "downtown" | "slu" | "bellevue" | "redmond" | "kirkland" | "renton" | "bothell" | "everett" | "tacoma" | null,
   "shouldUseFallback": false
 }
 
 Rules:
-- Use approximate public area coordinates, not private/personal addresses.
-- If the user gives a well-known Seattle-area company, campus, neighborhood, or city, estimate the public area center.
-- If the input is too vague or outside the greater Seattle/Bellevue/Redmond area, set shouldUseFallback to true.
+- If the user gives a complete office, school, or company address, estimate that address or nearest public block.
+- If the user gives a well-known company, campus, neighborhood, or city, estimate that public area center.
+- If the input is too vague or outside the Seattle, Bellevue, Redmond, Kirkland, Renton, Bothell, Everett, Tacoma, Lynnwood, Woodinville, Sammamish, Mercer Island, Newcastle, Tukwila, Kent, Auburn, Federal Way, or Mukilteo area, set shouldUseFallback to true.
 - Do not return any text outside JSON.
 
 Known fallback targets:
@@ -473,7 +518,8 @@ app.post("/api/resolve-commute-target", async (req, res) => {
         fallbackCommuteTargetResult(
           query,
           matchedFallbackTarget,
-          `I matched that to ${matchedFallbackTarget.label} for the commute estimate.`
+          "That location is outside the supported Puget Sound search right now. Choose a quick area or type a nearby internship address.",
+          { unsupported: true }
         )
       );
     }
