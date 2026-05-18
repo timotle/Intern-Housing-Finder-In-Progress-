@@ -107,10 +107,11 @@ function isGreaterSeattleCoordinate(latitude, longitude) {
   return latitude >= 47.1 && latitude <= 48.15 && longitude >= -122.7 && longitude <= -121.65;
 }
 
-function fallbackCommuteTargetResult(query, fallbackTarget, message) {
+function fallbackCommuteTargetResult(query, fallbackTarget, message, options = {}) {
   return {
     source: "fallback",
     message,
+    unsupported: Boolean(options.unsupported),
     target: {
       id: fallbackTarget.id,
       label: fallbackTarget.label,
@@ -225,7 +226,8 @@ async function handleResolveCommuteTarget(body) {
         body: fallbackCommuteTargetResult(
           query,
           matchedFallbackTarget,
-          `I matched that to ${matchedFallbackTarget.label} for the commute estimate.`
+          "That location is outside the supported Puget Sound search right now. Choose a quick area or type a nearby internship address.",
+          { unsupported: true }
         ),
       };
     }
