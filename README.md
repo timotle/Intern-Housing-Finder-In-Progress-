@@ -92,11 +92,17 @@ OPENAI_API_KEY=your_openai_key_here
 RENTCAST_API_KEY=your_rentcast_key_here
 ```
 
-The OpenAI key is used for AI explanations and location matching. The RentCast key is used for real rental listings.
+For local host, this file should be in the main project folder, the same folder as `package.json`. The backend also checks `server/.env`, but I recommend using the main project folder so the setup is easier to follow.
+
+Make sure the file is named exactly `.env`, not `.env.txt`.
+
+The OpenAI key is used for AI explanations and typed internship/location matching. The RentCast key is used for real rental listings.
 
 For RentCast, create your own RentCast account, sign up for the free plan, go to the API Dashboard, create an API key, and paste it into the `.env` file as `RENTCAST_API_KEY`.
 
-Without a RentCast API key, the app can still open, but fresh real listing search will not work correctly. It may only show cached listing data.
+Without an OpenAI API key, the app can still open, but AI explanations will not generate and typed location matching may fall back to a preset area. Without a RentCast API key, fresh real listing search will not work correctly. It may only show cached listing data.
+
+Do not put the OpenAI key in the frontend code or name it `VITE_OPENAI_API_KEY`. It should stay in `.env` so the backend can use it without exposing it in the browser.
 
 5. 🖥️ Start the backend in one terminal:
 
@@ -118,6 +124,8 @@ http://localhost:5173
 ```
 
 Make sure both the backend and frontend are running at the same time.
+
+If you add or change anything in `.env`, restart the backend terminal so it loads the new keys.
 
 ## 🚧 What Still Needs Development
 
